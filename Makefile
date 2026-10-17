@@ -1,4 +1,4 @@
-BINARY_NAME=go-gitops
+BINARY_NAME=shiptag
 INSTALL_DIR=$(HOME)/.local/bin
 
 .PHONY: all build install test clean
@@ -6,7 +6,7 @@ INSTALL_DIR=$(HOME)/.local/bin
 all: build
 
 build:
-	go build -ldflags="-s -w" -o bin/$(BINARY_NAME) ./cmd/github
+	go build -ldflags="-s -w" -o bin/$(BINARY_NAME) ./cmd/shiptag
 
 install: build
 	mkdir -p $(INSTALL_DIR)

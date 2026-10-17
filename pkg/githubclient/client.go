@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/faridlamaul/go-gitops/pkg/changelog"
+	"github.com/faridlamaul/shiptag/pkg/changelog"
 	"github.com/google/go-github/v69/github"
 	"golang.org/x/oauth2"
 )
 
-// Client wraps the GitHub API client for GitOps and release automation.
+// Client wraps the GitHub API client for release automation.
 type Client struct {
 	gh    *github.Client
 	Owner string

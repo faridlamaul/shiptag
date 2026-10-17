@@ -1,9 +1,9 @@
-# ⚡ go-gitops
+# ⚡ shiptag
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A lightweight, high-performance GitOps and Semantic Versioning CLI tool built specifically for **GitHub** and **GitHub Actions**.
+A lightweight, high-performance Semantic Versioning and release CLI tool built specifically for **GitHub** and **GitHub Actions**.
 
 It analyzes Conventional Commits, calculates the next semantic version tag, generates structured Markdown release notes, and publishes GitHub Releases automatically.
 
@@ -34,23 +34,23 @@ It analyzes Conventional Commits, calculates the next semantic version tag, gene
 
 ### Using `go install`
 ```bash
-go install github.com/faridlamaul/go-gitops/cmd/github@latest
+go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
 ```
 
 ### Build from Source
 ```bash
-git clone https://github.com/faridlamaul/go-gitops.git
-cd go-gitops
+git clone https://github.com/faridlamaul/shiptag.git
+cd shiptag
 make install
 ```
 
 ### Docker (GHCR)
 Pull the pre-built container image from GitHub Container Registry:
 ```bash
-docker pull ghcr.io/faridlamaul/go-gitops:latest
+docker pull ghcr.io/faridlamaul/shiptag:latest
 
 # Run tag command inside container
-docker run --rm -e GITHUB_TOKEN=$GITHUB_TOKEN ghcr.io/faridlamaul/go-gitops:latest tag --repo owner/repo
+docker run --rm -e GITHUB_TOKEN=$GITHUB_TOKEN ghcr.io/faridlamaul/shiptag:latest tag --repo owner/repo
 ```
 
 ---
@@ -61,25 +61,25 @@ docker run --rm -e GITHUB_TOKEN=$GITHUB_TOKEN ghcr.io/faridlamaul/go-gitops:late
 Calculates the next version, creates the git tag, and publishes the GitHub Release:
 ```bash
 # Auto-detect bump from Conventional Commits
-go-gitops tag --repo owner/repo --token $GITHUB_TOKEN
+shiptag tag --repo owner/repo --token $GITHUB_TOKEN
 
 # Manual bump override
-go-gitops tag --repo owner/repo --bump minor
+shiptag tag --repo owner/repo --bump minor
 
 # Dry-run preview
-go-gitops tag --repo owner/repo --dry-run
+shiptag tag --repo owner/repo --dry-run
 ```
 
 ### 2. `changelog` — Generate Release Notes
 Prints release notes for unreleased commits to stdout:
 ```bash
-go-gitops changelog --repo owner/repo
+shiptag changelog --repo owner/repo
 ```
 
 ### 3. `next-version` — Predict Next Version
 Outputs only the next semantic version string (useful in shell scripts and CI pipelines):
 ```bash
-NEXT_VER=$(go-gitops next-version --repo owner/repo)
+NEXT_VER=$(shiptag next-version --repo owner/repo)
 echo "Upcoming version: ${NEXT_VER}"
 ```
 
@@ -87,7 +87,7 @@ echo "Upcoming version: ${NEXT_VER}"
 
 ## 🤖 GitHub Actions Integration
 
-Use `go-gitops` directly in your GitHub Actions workflow:
+Use `shiptag` directly in your GitHub Actions workflow:
 
 ```yaml
 name: Release
@@ -109,8 +109,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Pull go-gitops container image
-        run: docker pull ghcr.io/faridlamaul/go-gitops:latest
+      - name: Pull shiptag container image
+        run: docker pull ghcr.io/faridlamaul/shiptag:latest
 
       - name: Run Semantic Release
         run: |
@@ -120,7 +120,7 @@ jobs:
             -e GITHUB_SHA="${{ github.sha }}" \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            ghcr.io/faridlamaul/go-gitops:latest tag
+            ghcr.io/faridlamaul/shiptag:latest tag
 
 ---
 

@@ -28,4 +28,4 @@ jobs:
 
       - name: Verify build compilation
         run: |
-          CGO_ENABLED=0 go build -v -ldflags="-s -w" -o bin/go-gitops ./cmd/github
+          CGO_ENABLED=0 go build -v -ldflags="-s -w" -o bin/shiptag ./cmd/shiptag

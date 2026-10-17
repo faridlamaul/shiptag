@@ -1,4 +1,4 @@
-module github.com/faridlamaul/go-gitops
+module github.com/faridlamaul/shiptag
 
 go 1.26.0
 

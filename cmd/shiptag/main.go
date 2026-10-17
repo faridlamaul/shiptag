@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/faridlamaul/go-gitops/pkg/changelog"
-	"github.com/faridlamaul/go-gitops/pkg/githubclient"
-	"github.com/faridlamaul/go-gitops/pkg/semver"
+	"github.com/faridlamaul/shiptag/pkg/changelog"
+	"github.com/faridlamaul/shiptag/pkg/githubclient"
+	"github.com/faridlamaul/shiptag/pkg/semver"
 	"github.com/spf13/cobra"
 )
 
@@ -28,9 +28,9 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	rootCmd := &cobra.Command{
-		Use:   "go-gitops",
-		Short: "GitOps and Semantic Release automation for GitHub",
-		Long: `⚡ go-gitops — Semantic Versioning and Release Automation for GitHub
+		Use:   "shiptag",
+		Short: "Semantic versioning and release automation for GitHub",
+		Long: `⚡ shiptag — Semantic Versioning and Release Automation for GitHub
 
 Analyzes Conventional Commits, calculates the next semantic version tag,
 generates changelog release notes, and publishes GitHub Releases.`,

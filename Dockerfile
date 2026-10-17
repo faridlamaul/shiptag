@@ -4,9 +4,9 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /go-gitops ./cmd/github
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /shiptag ./cmd/shiptag
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates git curl bash
-COPY --from=builder /go-gitops /usr/local/bin/go-gitops
-ENTRYPOINT ["go-gitops"]
+COPY --from=builder /shiptag /usr/local/bin/shiptag
+ENTRYPOINT ["shiptag"]
