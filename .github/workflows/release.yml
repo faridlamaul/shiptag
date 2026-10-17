@@ -69,6 +69,8 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The major tag (v0) can point at the same commit; pin the release tag.
+          GORELEASER_CURRENT_TAG: ${{ needs.release.outputs.tag }}
 
   image:
     name: Image
@@ -117,3 +119,26 @@ jobs:
           sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Users reference the action as faridlamaul/shiptag@v0, so the major tag
+  # follows the newest stable release once its artifacts are published.
+  # shiptag ignores tags like v0 because they are not full semantic versions.
+  major-tag:
+    name: Move major tag
+    needs: [release, binaries, image]
+    if: needs.release.outputs.released == 'true' && !contains(needs.release.outputs.tag, '-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Point the major tag at the release
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          major="${TAG%%.*}"
+          git tag --force "$major" HEAD
+          git push --force origin "refs/tags/$major"
