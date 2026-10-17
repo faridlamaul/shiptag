@@ -1,9 +1,10 @@
 # Contributing to shiptag
 
-Thanks for helping improve shiptag. Bug reports, fixes, and features are all welcome.
+Thanks for helping improve shiptag. Bug reports, fixes, and features are all welcome. Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
+- **Questions:** ask in [Discussions](https://github.com/faridlamaul/shiptag/discussions/categories/q-a) rather than opening an issue.
 - **Bugs:** open an issue with the bug report form. A `shiptag tag --dry-run` output and the CI platform make most bugs reproducible.
 - **Features and larger changes:** open a feature request first so we can agree on the approach before you write code.
 - **Security issues:** do not open a public issue; follow [SECURITY.md](SECURITY.md).
