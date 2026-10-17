@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/faridlamaul/shiptag/internal/testutil/gitfixture"
@@ -30,8 +31,19 @@ func TestResolveSHA(t *testing.T) {
 			t.Fatalf("ResolveSHA(%q) = %q, %v; want %q", ref, got, err, sha)
 		}
 	}
-	if _, err := r.ResolveSHA("nope"); err == nil {
-		t.Fatal("expected error for unknown ref")
+	_, err := r.ResolveSHA("nope")
+	if err == nil || !strings.Contains(err.Error(), `cannot resolve ref "nope"`) {
+		t.Fatalf("unknown ref: err = %v", err)
+	}
+}
+
+func TestResolveSHAEmptyRepository(t *testing.T) {
+	f := gitfixture.New(t)
+	r := open(t, f)
+	for _, ref := range []string{"HEAD", "main"} {
+		if _, err := r.ResolveSHA(ref); err == nil || err.Error() != "repository has no commits" {
+			t.Errorf("ResolveSHA(%q) err = %v", ref, err)
+		}
 	}
 }
 
@@ -161,6 +173,11 @@ func TestOpenNotRepository(t *testing.T) {
 	_, err := Open(t.TempDir())
 	if !errors.Is(err, ErrNotRepository) {
 		t.Fatalf("err = %v", err)
+	}
+	// git's own explanation is kept so ownership or permission problems are
+	// not mistaken for a missing repository.
+	if !strings.Contains(err.Error(), "fatal: not a git repository") {
+		t.Errorf("err lacks git stderr: %v", err)
 	}
 }
 

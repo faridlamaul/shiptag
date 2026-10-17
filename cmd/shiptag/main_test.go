@@ -486,3 +486,17 @@ func TestChangelogIdempotentWhenAlreadyReleased(t *testing.T) {
 		t.Errorf("changelog lacks notes:\n%s", cl)
 	}
 }
+
+func TestBadRefAndEmptyRepository(t *testing.T) {
+	f := gitfixture.New(t)
+	base := []string{"next-version", "--provider", "github", "--repo", "o/r", "--dir", f.Dir}
+	code, _, errOut := runCLI(t, nil, base...)
+	if code != 1 || errOut != "error: repository has no commits\n" {
+		t.Errorf("empty: exit %d, stderr %q", code, errOut)
+	}
+	f.Commit("feat: a", "a")
+	code, _, errOut = runCLI(t, nil, append(base, "--ref", "nope")...)
+	if code != 1 || !strings.HasPrefix(errOut, `error: cannot resolve ref "nope": `) {
+		t.Errorf("bad ref: exit %d, stderr %q", code, errOut)
+	}
+}

@@ -26,11 +26,34 @@ func Open(dir string) (*Repo, error) {
 	}
 	r := &Repo{Dir: dir}
 	out, err := r.git("rev-parse", "--is-inside-work-tree")
-	if err != nil || strings.TrimSpace(out) != "true" {
+	if err != nil {
+		// Keep git's own explanation: "dubious ownership" or permission
+		// problems look like a missing repository otherwise.
+		detail := err.Error()
+		var ge *gitError
+		if errors.As(err, &ge) && ge.stderr != "" {
+			detail = ge.stderr
+		}
+		return nil, fmt.Errorf("%w: %s: %s", ErrNotRepository, dir, detail)
+	}
+	if strings.TrimSpace(out) != "true" {
 		return nil, fmt.Errorf("%w: %s", ErrNotRepository, dir)
 	}
 	return r, nil
 }
+
+// gitError is a failed git invocation with its trimmed stderr.
+type gitError struct {
+	args   []string
+	err    error
+	stderr string
+}
+
+func (e *gitError) Error() string {
+	return fmt.Sprintf("git %s: %v: %s", strings.Join(e.args, " "), e.err, e.stderr)
+}
+
+func (e *gitError) Unwrap() error { return e.err }
 
 func (r *Repo) git(args ...string) (string, error) {
 	full := append([]string{"-c", "log.showSignature=false", "-c", "color.ui=false"}, args...)
@@ -40,7 +63,7 @@ func (r *Repo) git(args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return "", &gitError{args: args, err: err, stderr: strings.TrimSpace(stderr.String())}
 	}
 	return stdout.String(), nil
 }
@@ -55,7 +78,14 @@ func (r *Repo) TopLevel() (string, error) { return r.line("rev-parse", "--show-t
 
 // ResolveSHA resolves ref to a full commit SHA.
 func (r *Repo) ResolveSHA(ref string) (string, error) {
-	return r.line("rev-parse", "--verify", "--end-of-options", ref+"^{commit}")
+	sha, err := r.line("rev-parse", "--verify", "--end-of-options", ref+"^{commit}")
+	if err == nil {
+		return sha, nil
+	}
+	if _, herr := r.line("rev-parse", "--verify", "HEAD"); herr != nil {
+		return "", errors.New("repository has no commits")
+	}
+	return "", fmt.Errorf("cannot resolve ref %q: %w", ref, err)
 }
 
 // IsShallow reports whether the clone is shallow.
