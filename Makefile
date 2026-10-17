@@ -1,12 +1,14 @@
 BINARY_NAME=shiptag
 INSTALL_DIR=$(HOME)/.local/bin
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS=-s -w -X main.version=$(VERSION)
 
-.PHONY: all build install test clean
+.PHONY: all build install test vet fmt-check clean
 
 all: build
 
 build:
-	go build -ldflags="-s -w" -o bin/$(BINARY_NAME) ./cmd/shiptag
+	go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/shiptag
 
 install: build
 	mkdir -p $(INSTALL_DIR)
@@ -18,6 +20,9 @@ test:
 
 vet:
 	go vet ./...
+
+fmt-check:
+	@test -z "$$(gofmt -l .)" || { gofmt -l .; echo "gofmt: files above need formatting"; exit 1; }
 
 clean:
 	rm -rf bin/
