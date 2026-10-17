@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}"
 
 # Runs as root on purpose: GitHub Docker actions require it to access the
 # workspace, and CI job images write outputs into root-owned clone directories.
-FROM alpine:3.22
+FROM alpine:3.24
 RUN apk add --no-cache git ca-certificates \
     && git config --system --add safe.directory '*'
 COPY --from=builder /shiptag /usr/local/bin/shiptag
