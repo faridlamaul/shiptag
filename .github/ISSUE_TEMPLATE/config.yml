@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Ask a question
+    url: https://github.com/faridlamaul/shiptag/discussions/categories/q-a
+    about: Questions about setup or usage go to Discussions.
   - name: Report a security vulnerability
     url: https://github.com/faridlamaul/shiptag/security/advisories/new
     about: Report security issues privately, not as a public issue.
