@@ -89,15 +89,19 @@ jobs:
           fetch-depth: 0
 
       - id: shiptag
-        uses: docker://ghcr.io/faridlamaul/shiptag:latest
-        with:
-          args: tag
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: faridlamaul/shiptag@v0
 
       - if: steps.shiptag.outputs.released == 'true'
         run: echo "Released ${{ steps.shiptag.outputs.tag }}"
 ```
+
+| Input | Default | Description |
+|---|---|---|
+| `command` | `tag` | `tag`, `changelog`, or `next-version` |
+| `args` | | Extra flags separated by spaces, e.g. `--dry-run` or `--tag-prefix api/ --path services/api` |
+| `token` | `github.token` | Token used to publish the release |
+
+The step exposes every [output](#outputs-and-exit-codes). `@v0` follows the newest `0.x` release; pin `@v0.3.0` or a commit SHA for a fixed version. The action builds shiptag from source on Linux runners, which adds about 30 seconds; for a faster step, run the image directly with `uses: docker://ghcr.io/faridlamaul/shiptag:<version>`, `with: { args: tag }`, and `GITHUB_TOKEN` in `env`.
 
 ### GitLab CI
 

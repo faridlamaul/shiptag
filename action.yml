@@ -1,0 +1,44 @@
+name: shiptag
+description: Version, release notes, and releases from Conventional Commits for GitHub, GitLab, and Bitbucket.
+author: Ahmad Lamaul Farid
+branding:
+  icon: tag
+  color: blue
+
+inputs:
+  command:
+    description: "shiptag command to run: tag, changelog, or next-version."
+    default: tag
+  args:
+    description: Extra flags separated by spaces, e.g. "--dry-run" or "--tag-prefix api/ --path services/api". Quoting is not supported.
+    default: ""
+  token:
+    description: Token used to publish the release. Needs contents write permission.
+    default: ${{ github.token }}
+
+outputs:
+  released:
+    description: "\"true\" when a release was published."
+  version:
+    description: New version, e.g. 1.3.0.
+  tag:
+    description: New tag, e.g. v1.3.0.
+  previous_version:
+    description: Version the notes start from; empty for a first release.
+  sha:
+    description: Released commit.
+  url:
+    description: Release URL.
+  bump:
+    description: "major, minor, patch, initial, or explicit."
+
+# The image is built from this repository at the action's ref, so @v0,
+# @v0.3.0, and a commit SHA each run exactly that version of shiptag.
+runs:
+  using: docker
+  image: Dockerfile
+  entrypoint: /bin/sh
+  args:
+    - -c
+    # Word-split INPUT_ARGS into flags without glob expansion.
+    - 'set -f; export GITHUB_TOKEN="$INPUT_TOKEN"; exec shiptag $INPUT_COMMAND $INPUT_ARGS'
