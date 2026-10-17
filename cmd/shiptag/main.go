@@ -179,7 +179,9 @@ func tagCmd(analyzeFor analyzer, getenv func(string) string, stdout io.Writer, l
 			if found && remoteSHA != a.sha {
 				return fmt.Errorf("tag %s already points to %s, expected %s", tag, remoteSHA, a.sha)
 			}
-			if found {
+			// A GitHub draft release creates no tag, so a rerun with --draft
+			// must look for the draft itself before publishing another one.
+			if found || draft {
 				exists, err := prov.ReleaseExists(ctx, tag)
 				if err != nil {
 					return err

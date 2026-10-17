@@ -220,6 +220,7 @@ type fakeGitHub struct {
 	mu       sync.Mutex
 	tagSHA   string // "" = tag missing
 	release  bool
+	drafts   []string // tag names of draft releases served by the list endpoint
 	requests []string
 	posts    []map[string]any
 }
@@ -242,7 +243,11 @@ func (g *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		io.WriteString(w, `{}`)
 	case r.Method == "GET" && r.URL.Path == "/repos/o/r/releases":
-		io.WriteString(w, `[]`)
+		list := []map[string]any{}
+		for _, tag := range g.drafts {
+			list = append(list, map[string]any{"tag_name": tag, "draft": true})
+		}
+		_ = json.NewEncoder(w).Encode(list)
 	case r.Method == "POST" && r.URL.Path == "/repos/o/r/releases":
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -484,6 +489,39 @@ func TestChangelogIdempotentWhenAlreadyReleased(t *testing.T) {
 	}
 	if !strings.Contains(string(cl), "add --path flag") {
 		t.Errorf("changelog lacks notes:\n%s", cl)
+	}
+}
+
+func TestDraftRerunDetectsExistingDraft(t *testing.T) {
+	f, _, _ := githubRepo(t)
+	fake := &fakeGitHub{drafts: []string{"v1.3.0"}}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	outFile := filepath.Join(t.TempDir(), "github_output")
+	t.Chdir(t.TempDir())
+
+	code, _, errOut := runCLI(t, ciEnv(srv.URL, outFile, "tok"), "tag", "--draft", "--dir", f.Dir)
+	if code != 0 || !strings.Contains(errOut, "already released") {
+		t.Fatalf("exit %d, stderr %q", code, errOut)
+	}
+	if len(fake.posts) != 0 {
+		t.Errorf("unexpected POST: %v", fake.posts)
+	}
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "released=false\n") {
+		t.Errorf("outputs:\n%s", data)
+	}
+
+	// Without an existing draft, --draft publishes once.
+	fake2 := &fakeGitHub{}
+	srv2 := httptest.NewServer(fake2)
+	defer srv2.Close()
+	code, _, errOut = runCLI(t, ciEnv(srv2.URL, outFile, "tok"), "tag", "--draft", "--dir", f.Dir)
+	if code != 0 || len(fake2.posts) != 1 || fake2.posts[0]["draft"] != true {
+		t.Fatalf("exit %d, posts %v, stderr %q", code, fake2.posts, errOut)
 	}
 }
 
