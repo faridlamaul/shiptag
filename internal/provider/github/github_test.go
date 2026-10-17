@@ -38,6 +38,9 @@ func TestLinker(t *testing.T) {
 	if _, _, ok := l.ExtractChangeRequest("feat: x", ""); ok {
 		t.Error("unexpected match")
 	}
+	if got := l.ChangeRequestRef(12); got != "#12" {
+		t.Errorf("ref %q", got)
+	}
 	for _, c := range []struct{ name, email, want string }{
 		{"A", "123+alice@users.noreply.github.com", "@alice"},
 		{"A", "alice@users.noreply.github.com", "@alice"},
@@ -170,7 +173,7 @@ func TestGitHubPrefixedTagPath(t *testing.T) {
 	if paths[0] != "/repos/o/r/git/ref/tags/api/v1.0.0" {
 		t.Errorf("ref path %q", paths[0])
 	}
-	if paths[1] != "/repos/o/r/releases/tags/api%2Fv1.0.0" {
+	if paths[1] != "/repos/o/r/releases/tags/api/v1.0.0" {
 		t.Errorf("release path %q", paths[1])
 	}
 }

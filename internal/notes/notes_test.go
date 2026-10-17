@@ -19,6 +19,7 @@ func (fakeLinker) CompareURL(from, to string) string {
 	return "https://h/r/compare/" + from + "..." + to
 }
 func (fakeLinker) ChangeRequestURL(n int) string                        { return "https://h/r/pull/" + itoa(n) }
+func (fakeLinker) ChangeRequestRef(n int) string                        { return "#" + itoa(n) }
 func (fakeLinker) IssueURL(n int) string                                { return "https://h/r/issues/" + itoa(n) }
 func (fakeLinker) ExtractChangeRequest(h, b string) (int, string, bool) { return 0, h, false }
 func (fakeLinker) Mention(name, email string) string {
@@ -142,5 +143,21 @@ func TestRenderEmaillessContributors(t *testing.T) {
 	got, _, _ := Render(cs, opts())
 	if !strings.Contains(got, "### Contributors\n\nAnn, Ben, Zoe\n") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// bangLinker renders change requests GitLab-style.
+type bangLinker struct{ fakeLinker }
+
+func (bangLinker) ChangeRequestRef(n int) string { return "!" + itoa(n) }
+
+func TestChangeRequestRefFromLinker(t *testing.T) {
+	cs := []commits.Commit{{SHA: "abcdef1234", Type: "feat", Subject: "x", ChangeRequest: 42}}
+	md, _, _ := Render(cs, Options{
+		Heading: "v1.0.0", Sections: []Section{{Title: "Features", Types: []string{"feat"}}},
+		Other: Section{Title: "Other", Hidden: true}, Linker: bangLinker{},
+	})
+	if !strings.Contains(md, "- x ([!42](https://h/r/pull/42)) ([abcdef1]") {
+		t.Errorf("notes:\n%s", md)
 	}
 }

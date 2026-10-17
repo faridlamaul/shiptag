@@ -113,7 +113,7 @@ func line(c commits.Commit, l provider.Linker, isBreaking bool) string {
 	}
 	b.WriteString(escape(text))
 	if c.ChangeRequest > 0 {
-		b.WriteString(" ([#" + strconv.Itoa(c.ChangeRequest) + "](" + l.ChangeRequestURL(c.ChangeRequest) + "))")
+		b.WriteString(" ([" + l.ChangeRequestRef(c.ChangeRequest) + "](" + l.ChangeRequestURL(c.ChangeRequest) + "))")
 	}
 	short := c.SHA
 	if len(short) > 7 {

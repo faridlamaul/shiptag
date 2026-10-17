@@ -43,6 +43,9 @@ func TestLinker(t *testing.T) {
 	if _, _, ok := l.ExtractChangeRequest("plain", "none"); ok {
 		t.Error("unexpected match")
 	}
+	if got := l.ChangeRequestRef(8); got != "#8" {
+		t.Errorf("ref %q", got)
+	}
 	if got := l.Mention("Bob", "bob@x.io"); got != "Bob" {
 		t.Errorf("mention %q", got)
 	}

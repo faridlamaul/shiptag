@@ -33,6 +33,7 @@ func (l linker) CompareURL(from, to string) string {
 	return l.base() + "/compare/" + from + "..." + to
 }
 func (l linker) ChangeRequestURL(n int) string { return l.base() + "/pull/" + strconv.Itoa(n) }
+func (l linker) ChangeRequestRef(n int) string { return "#" + strconv.Itoa(n) }
 func (l linker) IssueURL(n int) string         { return l.base() + "/issues/" + strconv.Itoa(n) }
 
 func (l linker) ExtractChangeRequest(header, body string) (int, string, bool) {
@@ -118,7 +119,7 @@ func (g *gh) TagSHA(ctx context.Context, tag string) (string, bool, error) {
 }
 
 func (g *gh) ReleaseExists(ctx context.Context, tag string) (bool, error) {
-	err := g.c.Do(ctx, "GET", g.o+"/releases/tags/"+url.PathEscape(tag), nil, nil)
+	err := g.c.Do(ctx, "GET", g.o+"/releases/tags/"+escapeRef(tag), nil, nil)
 	if err == nil {
 		return true, nil
 	}

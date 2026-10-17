@@ -30,6 +30,7 @@ func (l linker) CompareURL(from, to string) string {
 	return l.base() + "/branches/compare/" + to + "%0D" + from
 }
 func (l linker) ChangeRequestURL(n int) string { return l.base() + "/pull-requests/" + strconv.Itoa(n) }
+func (l linker) ChangeRequestRef(n int) string { return "#" + strconv.Itoa(n) }
 func (l linker) IssueURL(n int) string         { return l.base() + "/issues/" + strconv.Itoa(n) }
 func (l linker) Mention(name, _ string) string { return name }
 

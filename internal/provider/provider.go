@@ -8,6 +8,7 @@ type Linker interface {
 	CommitURL(sha string) string
 	CompareURL(from, to string) string
 	ChangeRequestURL(n int) string
+	ChangeRequestRef(n int) string // link text: "#N" or "!N"
 	IssueURL(n int) string
 	ExtractChangeRequest(header, body string) (n int, cleanedHeader string, ok bool)
 	Mention(name, email string) string // "@login" or name
