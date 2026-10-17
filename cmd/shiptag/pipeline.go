@@ -194,6 +194,11 @@ func analyze(cmd *cobra.Command, g *globals, req request, getenv func(string) st
 	if !req.needVersion || len(a.bumpCommits) == 0 {
 		return a, nil
 	}
+	// A prerelease with no commits since the notes base would only renumber
+	// the tag already at this commit (for example on a CI retry).
+	if req.prerelease != "" && len(a.notesCommits) == 0 {
+		return a, nil
+	}
 	a.result, err = ver.Next(a.stable, a.level, all, ver.Options{
 		Bump:               req.bump,
 		Explicit:           req.explicit,

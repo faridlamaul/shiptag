@@ -386,3 +386,103 @@ func TestVersionShorthandRemoved(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q", code, errOut)
 	}
 }
+
+func TestPrereleaseRerunAtTaggedCommit(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("feat: a", "a")
+	f.Tag("v1.2.0", false)
+	f.Commit("feat: b", "b")
+	f.Tag("v1.3.0-rc.1", false)
+	base := []string{"--prerelease", "rc", "--provider", "github", "--repo", "o/r", "--dir", f.Dir}
+
+	code, out, errOut := runCLI(t, nil, append([]string{"tag", "--dry-run"}, base...)...)
+	if code != 0 || !strings.Contains(errOut, "nothing to release") || out != "" {
+		t.Errorf("tag: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+	code, out, errOut = runCLI(t, nil, append([]string{"next-version"}, base...)...)
+	if code != 0 || out != "" {
+		t.Errorf("next-version: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+
+	f.Commit("fix: c", "c")
+	code, out, errOut = runCLI(t, nil, append([]string{"next-version"}, base...)...)
+	if code != 0 || out != "v1.3.0-rc.2\n" {
+		t.Errorf("after fix: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+}
+
+func TestTagPrefixFlagOverridesConfig(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("feat: a", "a")
+	f.Tag("api/v1.0.0", false)
+	f.Tag("web/v2.0.0", false)
+	f.Commit("feat: b", "b")
+	if err := os.WriteFile(filepath.Join(f.Dir, ".shiptag.yaml"), []byte("tag_prefix: api/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	base := []string{"next-version", "--provider", "github", "--repo", "o/r", "--dir", f.Dir}
+
+	code, out, errOut := runCLI(t, nil, append(base, "--tag-prefix", "web/")...)
+	if code != 0 || out != "web/v2.1.0\n" {
+		t.Errorf("flag: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+	code, out, errOut = runCLI(t, nil, base...)
+	if code != 0 || out != "api/v1.1.0\n" {
+		t.Errorf("config: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+}
+
+func TestPathWithoutPrefixWarnsAndFilters(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("chore: init", "README.md")
+	f.Tag("v1.0.0", false)
+	api := f.Commit("fix: api bug", "services/api/main.go")
+	f.Commit("feat: web feature", "web/app.js")
+
+	code, out, errOut := runCLI(t, nil, "tag", "--dry-run", "--json", "--path", "services/api", "--provider", "github", "--repo", "o/r", "--dir", f.Dir)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut)
+	}
+	if !strings.Contains(errOut, "warning: path \"services/api\" is set without tag_prefix") {
+		t.Errorf("stderr = %q", errOut)
+	}
+	var p Plan
+	if err := json.Unmarshal([]byte(out), &p); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if p.NextTag != "v1.0.1" || p.Commits.Counted != 1 || len(p.Reasons) != 1 || p.Reasons[0].SHA != api {
+		t.Errorf("plan = %+v", p)
+	}
+	if strings.Contains(p.Notes, "web feature") {
+		t.Errorf("notes include a commit outside --path:\n%s", p.Notes)
+	}
+}
+
+func TestChangelogIdempotentWhenAlreadyReleased(t *testing.T) {
+	f, _, head := githubRepo(t)
+	fake := &fakeGitHub{tagSHA: head, release: true}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	outFile := filepath.Join(t.TempDir(), "github_output")
+	t.Chdir(t.TempDir())
+
+	for i := range 2 {
+		code, _, errOut := runCLI(t, ciEnv(srv.URL, outFile, "tok"), "tag", "--dir", f.Dir, "--changelog-file", "CHANGELOG.md")
+		if code != 0 || !strings.Contains(errOut, "already released") {
+			t.Fatalf("run %d: exit %d, stderr %q", i, code, errOut)
+		}
+	}
+	if len(fake.posts) != 0 {
+		t.Errorf("unexpected POST: %v", fake.posts)
+	}
+	cl, err := os.ReadFile("CHANGELOG.md")
+	if err != nil {
+		t.Fatalf("changelog not created: %v", err)
+	}
+	if n := strings.Count(string(cl), "## [v1.3.0]("); n != 1 {
+		t.Errorf("v1.3.0 heading appears %d times:\n%s", n, cl)
+	}
+	if !strings.Contains(string(cl), "add --path flag") {
+		t.Errorf("changelog lacks notes:\n%s", cl)
+	}
+}

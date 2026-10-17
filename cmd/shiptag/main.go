@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"strings"
@@ -192,6 +193,9 @@ func tagCmd(analyzeFor analyzer, getenv func(string) string, stdout io.Writer, l
 						}
 						p.Actions = append(p.Actions, "wrote outputs to "+destName)
 					}
+					if err := updateChangelog(a.cfg.ChangelogFile, tag, p); err != nil {
+						return err
+					}
 					return emit()
 				}
 			}
@@ -213,11 +217,8 @@ func tagCmd(analyzeFor analyzer, getenv func(string) string, stdout io.Writer, l
 				}
 				p.Actions = append(p.Actions, "wrote outputs to "+destName)
 			}
-			if a.cfg.ChangelogFile != "" {
-				if err := output.PrependChangelog(a.cfg.ChangelogFile, p.Notes); err != nil {
-					return fmt.Errorf("update changelog: %w", err)
-				}
-				p.Actions = append(p.Actions, "prepended "+a.cfg.ChangelogFile)
+			if err := updateChangelog(a.cfg.ChangelogFile, tag, p); err != nil {
+				return err
 			}
 			return emit()
 		},
@@ -289,4 +290,27 @@ func nextVersionCmd(analyzeFor analyzer, stdout io.Writer, logger *log.Logger) *
 	cmd.Flags().StringVar(&bump, "bump", "auto", "version bump: auto, major, minor, or patch")
 	cmd.Flags().StringVar(&prerelease, "prerelease", "", "prerelease identifier, e.g. rc or beta")
 	return cmd
+}
+
+// updateChangelog prepends the plan's notes to path unless the file already
+// has a heading for tag, so retries after a partial run do not duplicate it.
+func updateChangelog(path, tag string, p *Plan) error {
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("update changelog: %w", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "## ["+tag+"]") || strings.HasPrefix(line, "## "+tag+" ") {
+			p.Actions = append(p.Actions, path+" already contains "+tag)
+			return nil
+		}
+	}
+	if err := output.PrependChangelog(path, p.Notes); err != nil {
+		return fmt.Errorf("update changelog: %w", err)
+	}
+	p.Actions = append(p.Actions, "prepended "+path)
+	return nil
 }
