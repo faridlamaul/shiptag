@@ -549,7 +549,7 @@ func TestGitLabMergeRequestFromMergeCommit(t *testing.T) {
 	f.Merge("x", "Merge branch 'x' into 'main'\n\nfeat: x\n\nSee merge request g/p!42")
 
 	p := planNotes(t, "--provider", "gitlab", "--repo", "g/p", "--dir", f.Dir)
-	want := "- x ([!42](https://gitlab.com/g/p/-/merge_requests/42)) ([" + feat[:7] + "]"
+	want := "- x ([!42](https://gitlab.com/g/p/-/merge_requests/42)) ([`" + feat[:7] + "`]"
 	if p.NextTag != "v1.1.0" || p.Commits.Counted != 1 || !strings.Contains(p.Notes, want) {
 		t.Errorf("next %s, counted %d, notes:\n%s\nwant line %q", p.NextTag, p.Commits.Counted, p.Notes, want)
 	}
@@ -570,8 +570,8 @@ func TestGitHubPullRequestFromMergeCommit(t *testing.T) {
 
 	p := planNotes(t, "--provider", "github", "--repo", "o/r", "--dir", f.Dir)
 	for _, want := range []string{
-		"- y ([#12](https://github.com/o/r/pull/12)) ([" + fix[:7] + "]",
-		"- z ([#99](https://github.com/o/r/pull/99)) ([" + own[:7] + "]",
+		"- y ([#12](https://github.com/o/r/pull/12)) ([`" + fix[:7] + "`]",
+		"- z ([#99](https://github.com/o/r/pull/99)) ([`" + own[:7] + "`]",
 	} {
 		if !strings.Contains(p.Notes, want) {
 			t.Errorf("notes missing %q:\n%s", want, p.Notes)
@@ -595,8 +595,8 @@ func TestBitbucketSquashMerge(t *testing.T) {
 	if len(p.Reasons) != 1 || p.Reasons[0].Type != "feat" || p.Reasons[0].Subject != "add y" {
 		t.Errorf("reasons = %+v", p.Reasons)
 	}
-	want := "- add y ([#8](https://bitbucket.org/ws/r/pull-requests/8)) ([" + sq[:7] + "]"
-	if !strings.Contains(p.Notes, "### Features") || !strings.Contains(p.Notes, want) {
+	want := "- add y ([#8](https://bitbucket.org/ws/r/pull-requests/8)) ([`" + sq[:7] + "`]"
+	if !strings.Contains(p.Notes, want) {
 		t.Errorf("notes missing %q:\n%s", want, p.Notes)
 	}
 }

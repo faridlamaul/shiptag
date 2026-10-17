@@ -187,20 +187,24 @@ Only tags reachable from the released commit count. Merge commits are left out o
 ```markdown
 ## [v1.3.0](https://github.com/owner/repo/compare/v1.2.0...v1.3.0) (2026-10-17)
 
-### ⚠ BREAKING CHANGES
+### ⚠️ Breaking Changes
 
-- **api:** config moved to a new file ([#42](…)) ([a1b2c3d](…))
+- **api:** move config to shiptag.yaml ([#42](…)) ([`a1b2c3d`](…))
 
-### Features
+  The old config file is no longer read; rename it to shiptag.yaml.
 
-- **cli:** add --path flag ([#40](…)) ([d4e5f6a](…)), closes [#38](…)
+### ✨ Features
 
-### Contributors
+- **cli:** add --path flag ([#40](…)) ([`d4e5f6a`](…)), closes [#38](…)
+
+### ❤️ Contributors
 
 Alice, @bob, Carol
 ```
 
-Visible by default: Features, Bug Fixes, Performance Improvements, Reverts, Code Refactoring, Documentation. Build, CI, chore, style, test, and non-conventional commits are hidden. Bots are left out of the contributors.
+A breaking change keeps its commit subject as the list item, and the text of its `BREAKING CHANGE:` footer appears as a paragraph below it. The notes are plain Markdown, so they render the same on GitHub, GitLab, and Bitbucket.
+
+Visible by default: Features, Bug Fixes, Performance Improvements, Reverts, Code Refactoring, Documentation. Build, CI, chore, style, test, and non-conventional commits are hidden. Bots are left out of the contributors. Every heading can be renamed in the configuration, for example to drop the emoji.
 
 ## Configuration
 
@@ -219,12 +223,13 @@ release_rules:              # merged over the defaults; major | minor | patch | 
   perf: patch
   revert: patch
 
-breaking_title: "⚠ BREAKING CHANGES"
+breaking_title: "⚠️ Breaking Changes"
 sections:                   # replaces the default list when set
-  - { title: Features, types: [feat] }
-  - { title: Bug Fixes, types: [fix] }
-  - { title: Chores, types: [chore], hidden: true }
-other_section: { title: Other Changes, hidden: true }
+  - { title: ✨ Features, types: [feat] }
+  - { title: 🐛 Bug Fixes, types: [fix] }
+  - { title: 🔧 Chores, types: [chore], hidden: true }
+other_section: { title: 📝 Other Changes, hidden: true }
+contributors_title: "❤️ Contributors"
 
 exclude_authors: ["[bot]", dependabot, renovate]
 changelog_file: ""          # e.g. CHANGELOG.md (prepended, not committed)
