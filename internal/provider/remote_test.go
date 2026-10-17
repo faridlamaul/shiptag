@@ -1,6 +1,9 @@
 package provider
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseRemote(t *testing.T) {
 	for _, tc := range []struct{ in, host, path string }{
@@ -16,5 +19,14 @@ func TestParseRemote(t *testing.T) {
 	}
 	if _, _, err := ParseRemote(""); err == nil {
 		t.Error("want error for empty")
+	}
+}
+
+func TestParseRemoteDoesNotLeakCredentials(t *testing.T) {
+	for _, in := range []string{"https://user:supersecret@host"} {
+		_, _, err := ParseRemote(in)
+		if err == nil || strings.Contains(err.Error(), "supersecret") {
+			t.Fatalf("%q: err=%v", in, err)
+		}
 	}
 }

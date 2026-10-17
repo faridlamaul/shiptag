@@ -18,7 +18,7 @@ func ParseRemote(raw string) (host, path string, err error) {
 		// scp-like: [user@]host:path
 		hp, p, ok := strings.Cut(raw, ":")
 		if !ok {
-			return "", "", fmt.Errorf("unrecognized remote URL %q", raw)
+			return "", "", errors.New("unrecognized remote URL")
 		}
 		if i := strings.LastIndex(hp, "@"); i >= 0 {
 			hp = hp[i+1:]
@@ -33,7 +33,7 @@ func ParseRemote(raw string) (host, path string, err error) {
 	}
 	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
 	if host == "" || path == "" {
-		return "", "", fmt.Errorf("unrecognized remote URL %q", raw)
+		return "", "", errors.New("unrecognized remote URL")
 	}
 	return host, path, nil
 }

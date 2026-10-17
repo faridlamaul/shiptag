@@ -25,7 +25,7 @@ type Client struct {
 	BaseURL string
 	Header  http.Header
 	HTTP    *http.Client        // nil -> 30s timeout client
-	Sleep   func(time.Duration) // nil -> time.Sleep
+	Sleep   func(time.Duration) // nil -> context-aware wait
 }
 
 // StatusError describes a non-2xx response. Path excludes the query string.
@@ -63,10 +63,6 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	hc := c.HTTP
 	if hc == nil {
 		hc = &http.Client{Timeout: 30 * time.Second}
-	}
-	sleep := c.Sleep
-	if sleep == nil {
-		sleep = time.Sleep
 	}
 	safePath := stripQuery(path)
 
@@ -112,7 +108,19 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 			return nil
 		}
 		if attempt == 0 && (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500) {
-			sleep(retryDelay(resp.Header.Get("Retry-After")))
+			d := retryDelay(resp.Header.Get("Retry-After"))
+			if c.Sleep != nil {
+				c.Sleep(d)
+				if err := ctx.Err(); err != nil {
+					return fmt.Errorf("%s %s: %w", method, safePath, err)
+				}
+			} else {
+				select {
+				case <-ctx.Done():
+					return fmt.Errorf("%s %s: %w", method, safePath, ctx.Err())
+				case <-time.After(d):
+				}
+			}
 			continue
 		}
 		if len(data) > maxBody {

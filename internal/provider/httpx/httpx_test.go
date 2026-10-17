@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -153,6 +154,52 @@ func TestIsNotFound(t *testing.T) {
 	defer srv.Close()
 	err := (&Client{BaseURL: srv.URL}).Do(context.Background(), "GET", "/", nil, nil)
 	if !IsNotFound(err) || IsNotFound(errors.New("x")) || IsNotFound(nil) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestDoCancelDuringRetryWait(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "30")
+		w.WriteHeader(503)
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+	start := time.Now()
+	err := (&Client{BaseURL: srv.URL}).Do(ctx, "GET", "/", nil, nil)
+	if !errors.Is(err, context.Canceled) || time.Since(start) > time.Second {
+		t.Fatalf("err=%v after %v", err, time.Since(start))
+	}
+}
+
+func TestDoResendsBodyOnRetry(t *testing.T) {
+	var bodies []map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		bodies = append(bodies, m)
+		if len(bodies) == 1 {
+			w.WriteHeader(503)
+		}
+	}))
+	defer srv.Close()
+	sent := map[string]string{"k": "v"}
+	c := &Client{BaseURL: srv.URL, Sleep: func(time.Duration) {}}
+	if err := c.Do(context.Background(), "POST", "/", sent, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(bodies) != 2 || bodies[0]["k"] != "v" || bodies[1]["k"] != "v" {
+		t.Fatalf("bodies=%v", bodies)
+	}
+}
+
+func TestDoTransportFailureRedacts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	base := srv.URL
+	srv.Close()
+	err := (&Client{BaseURL: base}).Do(context.Background(), "GET", "/x?token=abc", nil, nil)
+	if err == nil || strings.Contains(err.Error(), "abc") || !strings.Contains(err.Error(), "GET") || !strings.Contains(err.Error(), "/x") {
 		t.Fatalf("err=%v", err)
 	}
 }
