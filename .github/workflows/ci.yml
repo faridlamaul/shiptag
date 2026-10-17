@@ -19,6 +19,15 @@ jobs:
           go-version: "stable"
           cache: true
 
+      - name: Check formatting
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "$files"
+            exit 1
+          fi
+
       - name: Run go vet
         run: go vet ./...
 
@@ -28,4 +37,4 @@ jobs:
 
       - name: Verify build compilation
         run: |
-          CGO_ENABLED=0 go build -v -ldflags="-s -w" -o bin/shiptag ./cmd/shiptag
+          CGO_ENABLED=0 go build -v -trimpath -ldflags="-s -w" -o bin/shiptag ./cmd/shiptag
