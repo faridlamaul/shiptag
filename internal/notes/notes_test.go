@@ -43,15 +43,16 @@ func opts() Options {
 		PreviousTag:   "v1.2.0",
 		CompareTo:     "v1.3.0",
 		Date:          time.Date(2026, 10, 17, 23, 0, 0, 0, time.UTC),
-		BreakingTitle: "⚠ BREAKING CHANGES",
+		BreakingTitle: "⚠️ Breaking Changes",
 		Sections: []Section{
-			{Title: "Features", Types: []string{"feat"}},
-			{Title: "Bug Fixes", Types: []string{"fix"}},
-			{Title: "Chores", Types: []string{"chore"}, Hidden: true},
+			{Title: "✨ Features", Types: []string{"feat"}},
+			{Title: "🐛 Bug Fixes", Types: []string{"fix"}},
+			{Title: "🔧 Chores", Types: []string{"chore"}, Hidden: true},
 		},
-		Other:          Section{Title: "Other Changes", Hidden: true},
-		ExcludeAuthors: []string{"[bot]", "dependabot"},
-		Linker:         fakeLinker{},
+		Other:             Section{Title: "Other Changes", Hidden: true},
+		ContributorsTitle: "❤️ Contributors",
+		ExcludeAuthors:    []string{"[bot]", "dependabot"},
+		Linker:            fakeLinker{},
 	}
 }
 
@@ -108,7 +109,7 @@ func TestRenderAllHidden(t *testing.T) {
 	if !strings.Contains(got, "_No user-facing changes._") || counted != 0 || hidden != 2 {
 		t.Fatalf("%q %d %d", got, counted, hidden)
 	}
-	if !strings.Contains(got, "### Contributors\n\nA, B\n") {
+	if !strings.Contains(got, "### ❤️ Contributors\n\nA, B\n") {
 		t.Fatalf("contributors missing: %q", got)
 	}
 }
@@ -141,8 +142,34 @@ func TestRenderEmaillessContributors(t *testing.T) {
 		CoAuthors: []commits.Person{p("Ann", ""), p("Ben", ""), p("ann", "")},
 	}}
 	got, _, _ := Render(cs, opts())
-	if !strings.Contains(got, "### Contributors\n\nAnn, Ben, Zoe\n") {
+	if !strings.Contains(got, "### ❤️ Contributors\n\nAnn, Ben, Zoe\n") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestRenderBreakingNoteParagraphs(t *testing.T) {
+	cs := []commits.Commit{
+		{SHA: "aaaaaaa1", Type: "feat", Scope: "api", Subject: "drop v1", Breaking: true,
+			BreakingNote: "v1 endpoints\nare removed.\n\n#2 use v2 <now>.", Author: p("A", "a@x")},
+		{SHA: "bbbbbbb2", Type: "fix", Subject: "rename core", Breaking: true, Author: p("A", "a@x")},
+	}
+	got, _, _ := Render(cs, opts())
+	want := "### ⚠️ Breaking Changes\n\n" +
+		"- **api:** drop v1 ([`aaaaaaa`](https://h/r/commit/aaaaaaa1))\n" +
+		"\n  v1 endpoints are removed.\n" +
+		"\n  \\#2 use v2 &lt;now&gt;.\n" +
+		"\n- rename core ([`bbbbbbb`](https://h/r/commit/bbbbbbb2))\n\n"
+	if !strings.Contains(got, want) {
+		t.Fatalf("got:\n%s\nwant section:\n%s", got, want)
+	}
+}
+
+func TestRenderBreakingNoteLastItem(t *testing.T) {
+	cs := []commits.Commit{{SHA: "aaaaaaa1", Type: "feat", Subject: "drop v1", Breaking: true,
+		BreakingNote: "use v2", Author: p("A", "a@x")}}
+	got, _, _ := Render(cs, opts())
+	if !strings.Contains(got, "- drop v1 ([`aaaaaaa`](https://h/r/commit/aaaaaaa1))\n\n  use v2\n\n### ❤️ Contributors") {
+		t.Fatalf("got:\n%s", got)
 	}
 }
 
@@ -157,7 +184,7 @@ func TestChangeRequestRefFromLinker(t *testing.T) {
 		Heading: "v1.0.0", Sections: []Section{{Title: "Features", Types: []string{"feat"}}},
 		Other: Section{Title: "Other", Hidden: true}, Linker: bangLinker{},
 	})
-	if !strings.Contains(md, "- x ([!42](https://h/r/pull/42)) ([abcdef1]") {
+	if !strings.Contains(md, "- x ([!42](https://h/r/pull/42)) ([`abcdef1`]") {
 		t.Errorf("notes:\n%s", md)
 	}
 }

@@ -11,10 +11,10 @@ Actions:
 --- Release notes ---
 ## [v1.3.0](https://github.com/o/r/compare/v1.2.0...v1.3.0) (2026-10-17)
 
-### Features
+### ✨ Features
 
-- **cli:** add --path flag ([#40](https://github.com/o/r/pull/40)) ([<feat7>](https://github.com/o/r/commit/<feat>))
+- **cli:** add --path flag ([#40](https://github.com/o/r/pull/40)) ([`<feat7>`](https://github.com/o/r/commit/<feat>))
 
-### Contributors
+### ❤️ Contributors
 
 Test

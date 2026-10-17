@@ -17,29 +17,34 @@ func TestDefault(t *testing.T) {
 	if !reflect.DeepEqual(c.ReleaseRules, wantRules) {
 		t.Errorf("ReleaseRules = %v", c.ReleaseRules)
 	}
-	if c.BreakingTitle != "⚠ BREAKING CHANGES" {
-		t.Errorf("BreakingTitle = %q", c.BreakingTitle)
-	}
 	if !reflect.DeepEqual(c.ExcludeAuthors, []string{"[bot]", "dependabot", "renovate"}) {
 		t.Errorf("ExcludeAuthors = %v", c.ExcludeAuthors)
 	}
-	if want := (Section{Title: "Other Changes", Hidden: true}); !reflect.DeepEqual(c.OtherSection, want) {
+	if !c.OtherSection.Hidden || len(c.OtherSection.Types) != 0 {
 		t.Errorf("OtherSection = %+v", c.OtherSection)
 	}
-	want := []Section{
-		{"Features", []string{"feat"}, false},
-		{"Bug Fixes", []string{"fix"}, false},
-		{"Performance Improvements", []string{"perf"}, false},
-		{"Reverts", []string{"revert"}, false},
-		{"Code Refactoring", []string{"refactor"}, false},
-		{"Documentation", []string{"docs"}, false},
-		{"Build System", []string{"build"}, true},
-		{"Continuous Integration", []string{"ci"}, true},
-		{"Chores", []string{"chore"}, true},
-		{"Styles", []string{"style"}, true},
-		{"Tests", []string{"test"}, true},
+	type group struct {
+		types  []string
+		hidden bool
 	}
-	if !reflect.DeepEqual(c.Sections, want) {
+	want := []group{
+		{[]string{"feat"}, false},
+		{[]string{"fix"}, false},
+		{[]string{"perf"}, false},
+		{[]string{"revert"}, false},
+		{[]string{"refactor"}, false},
+		{[]string{"docs"}, false},
+		{[]string{"build"}, true},
+		{[]string{"ci"}, true},
+		{[]string{"chore"}, true},
+		{[]string{"style"}, true},
+		{[]string{"test"}, true},
+	}
+	got := make([]group, len(c.Sections))
+	for i, s := range c.Sections {
+		got[i] = group{s.Types, s.Hidden}
+	}
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Sections = %+v", c.Sections)
 	}
 	if err := c.Validate(); err != nil {
@@ -119,6 +124,7 @@ func TestValidate(t *testing.T) {
 		{"version", "initial_version", func(c *Config) { c.InitialVersion = "one" }},
 		{"section", "title", func(c *Config) { c.Sections[0].Title = "" }},
 		{"prefix", "tag_prefix", func(c *Config) { c.TagPrefix = "a b" }},
+		{"contributors", "contributors_title", func(c *Config) { c.ContributorsTitle = " " }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

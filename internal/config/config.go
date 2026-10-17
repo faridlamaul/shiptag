@@ -35,6 +35,7 @@ type Config struct {
 	BreakingTitle      string            `yaml:"breaking_title"`
 	Sections           []Section         `yaml:"sections"`
 	OtherSection       Section           `yaml:"other_section"`
+	ContributorsTitle  string            `yaml:"contributors_title"`
 	ExcludeAuthors     []string          `yaml:"exclude_authors"`
 	ChangelogFile      string            `yaml:"changelog_file"`
 }
@@ -51,22 +52,23 @@ func Default() Config {
 			"perf":   "patch",
 			"revert": "patch",
 		},
-		BreakingTitle: "⚠ BREAKING CHANGES",
+		BreakingTitle: "⚠️ Breaking Changes",
 		Sections: []Section{
-			{Title: "Features", Types: []string{"feat"}},
-			{Title: "Bug Fixes", Types: []string{"fix"}},
-			{Title: "Performance Improvements", Types: []string{"perf"}},
-			{Title: "Reverts", Types: []string{"revert"}},
-			{Title: "Code Refactoring", Types: []string{"refactor"}},
-			{Title: "Documentation", Types: []string{"docs"}},
-			{Title: "Build System", Types: []string{"build"}, Hidden: true},
-			{Title: "Continuous Integration", Types: []string{"ci"}, Hidden: true},
-			{Title: "Chores", Types: []string{"chore"}, Hidden: true},
-			{Title: "Styles", Types: []string{"style"}, Hidden: true},
-			{Title: "Tests", Types: []string{"test"}, Hidden: true},
+			{Title: "✨ Features", Types: []string{"feat"}},
+			{Title: "🐛 Bug Fixes", Types: []string{"fix"}},
+			{Title: "⚡ Performance Improvements", Types: []string{"perf"}},
+			{Title: "⏪ Reverts", Types: []string{"revert"}},
+			{Title: "♻️ Code Refactoring", Types: []string{"refactor"}},
+			{Title: "📚 Documentation", Types: []string{"docs"}},
+			{Title: "📦 Build System", Types: []string{"build"}, Hidden: true},
+			{Title: "👷 Continuous Integration", Types: []string{"ci"}, Hidden: true},
+			{Title: "🔧 Chores", Types: []string{"chore"}, Hidden: true},
+			{Title: "🎨 Styles", Types: []string{"style"}, Hidden: true},
+			{Title: "🧪 Tests", Types: []string{"test"}, Hidden: true},
 		},
-		OtherSection:   Section{Title: "Other Changes", Hidden: true},
-		ExcludeAuthors: []string{"[bot]", "dependabot", "renovate"},
+		OtherSection:      Section{Title: "📝 Other Changes", Hidden: true},
+		ContributorsTitle: "❤️ Contributors",
+		ExcludeAuthors:    []string{"[bot]", "dependabot", "renovate"},
 	}
 }
 
@@ -120,6 +122,9 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(s.Title) == "" {
 			return fmt.Errorf("sections[%d]: title must not be empty", i)
 		}
+	}
+	if strings.TrimSpace(c.ContributorsTitle) == "" {
+		return errors.New("contributors_title: must not be empty")
 	}
 	if strings.IndexFunc(c.TagPrefix, unicode.IsSpace) >= 0 {
 		return fmt.Errorf("tag_prefix: %q must not contain whitespace", c.TagPrefix)

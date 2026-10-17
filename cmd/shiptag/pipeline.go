@@ -80,15 +80,16 @@ func (a *analysis) render(heading, compareTo string) (string, int, int) {
 	}
 	o := a.cfg.OtherSection
 	return notes.Render(a.notesCommits, notes.Options{
-		Heading:        heading,
-		PreviousTag:    a.previousTag(),
-		CompareTo:      compareTo,
-		Date:           a.date,
-		BreakingTitle:  a.cfg.BreakingTitle,
-		Sections:       sections,
-		Other:          notes.Section{Title: o.Title, Types: o.Types, Hidden: o.Hidden},
-		ExcludeAuthors: a.cfg.ExcludeAuthors,
-		Linker:         a.linker,
+		Heading:           heading,
+		PreviousTag:       a.previousTag(),
+		CompareTo:         compareTo,
+		Date:              a.date,
+		BreakingTitle:     a.cfg.BreakingTitle,
+		Sections:          sections,
+		Other:             notes.Section{Title: o.Title, Types: o.Types, Hidden: o.Hidden},
+		ContributorsTitle: a.cfg.ContributorsTitle,
+		ExcludeAuthors:    a.cfg.ExcludeAuthors,
+		Linker:            a.linker,
 	})
 }
 

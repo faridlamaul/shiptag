@@ -20,15 +20,16 @@ type Section struct {
 
 // Options controls rendering.
 type Options struct {
-	Heading        string    // tag name, or "Unreleased"
-	PreviousTag    string    // "" = no compare link
-	CompareTo      string    // ref for the compare URL: the new tag, or a short SHA
-	Date           time.Time // rendered as 2006-01-02 in UTC
-	BreakingTitle  string
-	Sections       []Section
-	Other          Section
-	ExcludeAuthors []string
-	Linker         provider.Linker
+	Heading           string    // tag name, or "Unreleased"
+	PreviousTag       string    // "" = no compare link
+	CompareTo         string    // ref for the compare URL: the new tag, or a short SHA
+	Date              time.Time // rendered as 2006-01-02 in UTC
+	BreakingTitle     string
+	Sections          []Section
+	Other             Section
+	ContributorsTitle string
+	ExcludeAuthors    []string
+	Linker            provider.Linker
 }
 
 // Render returns the release notes Markdown, the number of commits rendered,
@@ -85,33 +86,52 @@ func Render(cs []commits.Commit, o Options) (markdown string, counted, hidden in
 	writeSection(&b, o, o.Other.Title, buckets[other], false)
 
 	if names := contributors(cs, o); len(names) > 0 {
-		b.WriteString("### Contributors\n\n" + strings.Join(names, ", ") + "\n")
+		b.WriteString("### " + o.ContributorsTitle + "\n\n" + strings.Join(names, ", ") + "\n")
 	}
 	return b.String(), counted, hidden
 }
 
+// writeSection writes a titled list. A breaking change keeps its subject as
+// the item and renders its BREAKING CHANGE note as indented paragraphs below.
 func writeSection(b *strings.Builder, o Options, title string, cs []commits.Commit, isBreaking bool) {
 	if len(cs) == 0 {
 		return
 	}
 	b.WriteString("### " + title + "\n\n")
-	for _, c := range cs {
-		b.WriteString(line(c, o.Linker, isBreaking) + "\n")
+	for i, c := range cs {
+		b.WriteString(line(c, o.Linker) + "\n")
+		if !isBreaking {
+			continue
+		}
+		paras := paragraphs(c.BreakingNote)
+		for _, p := range paras {
+			b.WriteString("\n  " + escape(p) + "\n")
+		}
+		if len(paras) > 0 && i < len(cs)-1 {
+			b.WriteString("\n")
+		}
 	}
 	b.WriteString("\n")
 }
 
-func line(c commits.Commit, l provider.Linker, isBreaking bool) string {
-	text := c.Subject
-	if isBreaking && strings.TrimSpace(c.BreakingNote) != "" {
-		text = strings.Join(strings.Fields(c.BreakingNote), " ")
+// paragraphs splits s on blank lines and joins the lines of each paragraph.
+func paragraphs(s string) []string {
+	var out []string
+	for _, block := range strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n\n") {
+		if p := strings.Join(strings.Fields(block), " "); p != "" {
+			out = append(out, p)
+		}
 	}
+	return out
+}
+
+func line(c commits.Commit, l provider.Linker) string {
 	var b strings.Builder
 	b.WriteString("- ")
 	if c.Scope != "" {
 		b.WriteString("**" + escape(c.Scope) + ":** ")
 	}
-	b.WriteString(escape(text))
+	b.WriteString(escape(c.Subject))
 	if c.ChangeRequest > 0 {
 		b.WriteString(" ([" + l.ChangeRequestRef(c.ChangeRequest) + "](" + l.ChangeRequestURL(c.ChangeRequest) + "))")
 	}
@@ -119,7 +139,7 @@ func line(c commits.Commit, l provider.Linker, isBreaking bool) string {
 	if len(short) > 7 {
 		short = short[:7]
 	}
-	b.WriteString(" ([" + short + "](" + l.CommitURL(c.SHA) + "))")
+	b.WriteString(" ([`" + short + "`](" + l.CommitURL(c.SHA) + "))")
 	for i, n := range c.Issues {
 		if i == 0 {
 			b.WriteString(", closes ")
