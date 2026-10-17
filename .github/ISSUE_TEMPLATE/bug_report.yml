@@ -1,0 +1,62 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The command you ran and, if relevant, your `.shiptag.yaml` and the commit messages involved.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: dry-run
+    attributes:
+      label: Dry-run output
+      description: Output of `shiptag tag --dry-run`. Remove any tokens before posting.
+      render: text
+
+  - type: input
+    id: version
+    attributes:
+      label: shiptag version
+      description: Release, image tag, or commit SHA.
+      placeholder: v0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - GitHub
+        - GitHub Enterprise Server
+        - GitLab.com
+        - GitLab self-managed
+        - Bitbucket Cloud
+        - Local / other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run shiptag?
+      options:
+        - Docker image
+        - Release binary
+        - go install
+        - Built from source
+    validations:
+      required: true

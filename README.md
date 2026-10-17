@@ -248,9 +248,7 @@ shiptag exits `0` when it released, when there is nothing to release, or when th
 
 ## Contributing
 
-Pull requests are squash-merged, and the PR title becomes the commit message that shiptag releases from, so it must be a [Conventional Commit](https://www.conventionalcommits.org/) such as `feat(cli): add --path flag`. Before opening a PR, run `make fmt-check vet test`.
-
-Every merge to `main` runs the test suite and then releases this repository with shiptag itself: it tags the version, publishes the notes, attaches the binaries, and pushes the image. Merges with only `docs`, `chore`, `ci`, or similar commits release nothing.
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). The PR title must be a Conventional Commit, because it becomes the commit that shiptag releases from. To report a vulnerability, follow [SECURITY.md](SECURITY.md).
 
 ## License
 
