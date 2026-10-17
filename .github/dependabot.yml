@@ -1,11 +1,15 @@
 version: 2
+
+# Updates that change the released binaries or image use fix(deps), so merging
+# them publishes a patch release. CI-only updates use ci(deps) and release
+# nothing.
 updates:
   - package-ecosystem: gomod
     directory: /
     schedule:
       interval: weekly
     commit-message:
-      prefix: build(deps)
+      prefix: fix(deps)
 
   - package-ecosystem: github-actions
     directory: /
@@ -19,4 +23,9 @@ updates:
     schedule:
       interval: weekly
     commit-message:
-      prefix: build(deps)
+      prefix: fix(deps)
+    ignore:
+      # Go minor upgrades also need setup-go in the workflows, which
+      # Dependabot does not update, so they are done by hand in one change.
+      - dependency-name: golang
+        update-types: ["version-update:semver-minor"]
