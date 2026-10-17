@@ -2,6 +2,7 @@ package output
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -129,7 +130,7 @@ func TestPrependChangelogPreservesMode(t *testing.T) {
 	}
 }
 
-func TestPrependChangelogCleansTmpOnFailure(t *testing.T) {
+func TestPrependChangelogReadErrorReturnsEarly(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "CHANGELOG.md")
 	if err := os.Mkdir(p, 0o755); err != nil {
 		t.Fatal(err)
@@ -137,7 +138,24 @@ func TestPrependChangelogCleansTmpOnFailure(t *testing.T) {
 	if err := PrependChangelog(p, "## v2\n"); err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func TestPrependChangelogCleansTmpOnRenameFailure(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "CHANGELOG.md")
+	orig := "# Changelog\n\n## v1\n"
+	if err := os.WriteFile(p, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := rename
+	rename = func(string, string) error { return errors.New("boom") }
+	t.Cleanup(func() { rename = old })
+	if err := PrependChangelog(p, "## v2\n"); err == nil {
+		t.Fatal("expected error")
+	}
 	if _, err := os.Stat(p + ".tmp"); err == nil {
 		t.Error("tmp file left behind")
+	}
+	if b, _ := os.ReadFile(p); string(b) != orig {
+		t.Errorf("original changed: %q", b)
 	}
 }

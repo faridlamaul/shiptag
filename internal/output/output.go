@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// rename is a seam for tests.
+var rename = os.Rename
+
 // Values are the release results exposed to CI.
 type Values struct {
 	Released                                      bool
@@ -131,7 +134,7 @@ func PrependChangelog(path, notes string) error {
 		os.Remove(tmp)
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := rename(tmp, path); err != nil {
 		os.Remove(tmp)
 		return err
 	}
