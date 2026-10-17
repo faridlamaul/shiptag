@@ -3,52 +3,41 @@
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-shiptag analyzes Conventional Commits in your local git clone, calculates the next semantic version, renders categorized release notes, and publishes the release to **GitHub**, **GitLab**, or **Bitbucket Cloud**. One binary, one command set, and the platform is detected automatically in CI.
+shiptag reads Conventional Commits from your git history, calculates the next semantic version, writes categorized release notes, and publishes the release to **GitHub**, **GitLab**, or **Bitbucket Cloud**. The platform is detected automatically in CI.
 
-## Features
+- **One tool, three platforms:** GitHub (and Enterprise Server), GitLab (and self-managed), Bitbucket Cloud.
+- **Local analysis:** tags and commits come from the clone, so results are the same everywhere and `--dry-run` needs no token.
+- **Safe to re-run:** a commit that is already released is never released twice.
+- **CI-ready outputs:** `version`, `tag`, `released`, and more for the next steps of your pipeline.
 
-- **Multi-provider:** GitHub (including Enterprise Server), GitLab (including self-managed), and Bitbucket Cloud.
-- **Local-git analysis:** tags and commits come from the clone, so results are identical on every platform and dry-run needs no token or network.
-- **Bump rules:** `feat` bumps minor, `fix`/`perf`/`revert` bump patch, breaking changes bump major. Docs, chore, and CI-only pushes release nothing by default.
-- **Categorized notes with links:** sections per commit type, links to PRs/MRs, issues, commits, and the compare view, plus a contributors list.
-- **Dry-run and JSON plan:** see the version, the reasons, and the notes before anything is published.
-- **CI outputs:** `version`, `tag`, `released`, and more are written to `$GITHUB_OUTPUT` or `shiptag.env`.
-- **Config file:** optional `.shiptag.yaml`; it works with zero configuration.
-
-## Provider support
+## Platforms
 
 | | GitHub | GitLab | Bitbucket Cloud |
 |---|---|---|---|
-| Hosts | github.com, GitHub Enterprise Server | gitlab.com, self-managed | bitbucket.org |
-| What "release" means | GitHub Release (draft and prerelease supported) | GitLab Release | Annotated tag whose message carries the notes (Bitbucket has no Releases feature) |
-| Change request links | `(#N)`, `Merge pull request #N from …` | `(!N)`, `See merge request <path>!N` | `(pull request #N)`, `Merged in <branch> (pull request #N)` |
-| `--draft` | Yes | No | No |
+| Publishes | GitHub Release (draft, prerelease) | GitLab Release | Annotated tag carrying the notes |
+| Token | `GITHUB_TOKEN` or `GH_TOKEN` | `GITLAB_TOKEN`, else the built-in `CI_JOB_TOKEN` | `BITBUCKET_TOKEN` |
+| Permission | `contents: write` | Developer role (`api` scope for personal or project tokens) | Repository access token with `repository:write` |
+| PR/MR links from | `(#N)`, `Merge pull request #N` | `(!N)`, `See merge request …!N` | `(pull request #N)` |
+
+`--token` overrides the environment on every platform.
 
 ## Installation
 
 ```bash
-# Go
-go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
-
-# From source
-git clone https://github.com/faridlamaul/shiptag.git
-cd shiptag
-make build        # writes bin/shiptag
-make install      # copies it to ~/.local/bin
-
-# Docker (runs as a non-root user; contains git and ca-certificates only)
-docker pull ghcr.io/faridlamaul/shiptag:latest
+docker pull ghcr.io/faridlamaul/shiptag:latest                 # Docker
+go install github.com/faridlamaul/shiptag/cmd/shiptag@latest  # Go 1.26+
 ```
+
+To build from source, run `make build` (writes `bin/shiptag`) or `make install` (copies it to `~/.local/bin`).
 
 ## Quick start
 
-shiptag needs the **full git history**; shallow clones are rejected. Preview a release without a token:
+shiptag needs the full git history; shallow clones are rejected.
 
 ```bash
-shiptag tag --dry-run
+shiptag tag --dry-run        # preview the version, the reasons, and the notes
+GITHUB_TOKEN=... shiptag tag # publish
 ```
-
-Example output from this repository:
 
 ```text
 Provider:     github (faridlamaul/shiptag)
@@ -63,128 +52,19 @@ Actions:
 
 --- Release notes ---
 ## v0.1.0 (2026-10-17)
-
-### ⚠ BREAKING CHANGES
 …
 ```
 
-Publish it:
+With Docker, mount the repository and keep file ownership:
 
 ```bash
-export GITHUB_TOKEN=...   # see "Tokens and permissions"
-shiptag tag
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace \
+  ghcr.io/faridlamaul/shiptag:latest tag --dry-run
 ```
-
-## Commands and flags
-
-```text
-shiptag [command]
-
-  tag           Compute the next version, publish the release, and write CI outputs
-  changelog     Print release notes for unreleased commits
-  next-version  Print the next tag, or nothing when there is nothing to release
-```
-
-Global flags (all commands):
-
-```text
-      --api-url string      API base URL (default: derived from the web base URL)
-      --base-url string     web base URL for self-hosted instances
-      --config string       config file (default: .shiptag.yaml in the repository root)
-      --dir string          repository directory (default ".")
-      --path string         count only commits touching this path
-      --provider string     hosting provider: github, gitlab, or bitbucket (default: detected)
-      --ref string          commit to release (default: the CI commit SHA, else HEAD)
-      --repo string         repository path, e.g. owner/repo (default: from CI or the origin remote)
-      --tag-prefix string   version tag prefix, e.g. api/
-      --token string        API token (default: from the provider's environment variables)
-```
-
-`shiptag tag` flags:
-
-```text
-      --bump string             version bump: auto, major, minor, or patch (default "auto")
-      --changelog-file string   prepend the release notes to this file
-      --draft                   create a draft release (GitHub only)
-      --dry-run                 print the plan without publishing or writing files
-      --json                    print the plan as JSON
-      --output-file string      append CI outputs to this file (default: detected from CI)
-      --prerelease string       prerelease identifier, e.g. rc or beta
-      --version string          explicit version, e.g. 1.4.0 or v1.4.0
-```
-
-`shiptag changelog` flags:
-
-```text
-      --prerelease string   cover commits since the latest tag of any kind
-      --version string      version to use as the heading instead of Unreleased
-```
-
-`shiptag next-version` flags:
-
-```text
-      --bump string         version bump: auto, major, minor, or patch (default "auto")
-      --prerelease string   prerelease identifier, e.g. rc or beta
-```
-
-Notes:
-
-- Provider detection order: `--provider`, then CI environment variables, then the `origin` remote host.
-- `--base-url` sets the web URL of a self-hosted instance; the API URL is derived (`<web>/api/v3` for GitHub Enterprise, `<web>/api/v4` for GitLab). `--api-url` overrides it directly.
-- Flags override the config file, which overrides defaults.
-- `--json` prints the plan (and, without `--dry-run`, what was done) as one JSON object. Logs go to stderr.
-
-## Versioning rules
-
-Each counted commit maps to a level; the highest wins.
-
-| Commit | Bump |
-|---|---|
-| `!` after the type/scope, or a `BREAKING CHANGE:` footer | major |
-| `feat` | minor |
-| `fix`, `perf`, `revert` | patch |
-| Every other type, and non-conventional commits | none |
-
-- **Nothing to release:** if the highest level is none, shiptag prints `nothing to release`, writes `released=false`, and exits 0.
-- **0.x rule:** while the stable base is `0.y.z`, a major bump becomes minor (`initial_development: true`). Use `--bump major` or `--version 1.0.0` to graduate to 1.0.0.
-- **First release:** with no reachable stable tag, the version is `initial_version` (default `0.1.0`), regardless of commit types. `--version` and `--bump` still win.
-- **Overrides:** `--bump` forces the level (without the 0.x rule). `--version` sets the version; it must be valid SemVer, not an existing tag, and greater than the stable base.
-- **Prereleases:** `--prerelease rc` computes the stable core from commits since the last stable tag, then numbers `-rc.N` after the highest existing `rc` tag of that core (any branch). Prerelease notes cover commits since the latest tag of any kind; the later stable release covers everything since the last stable tag. Releases are flagged as prerelease on GitHub.
-- **Tag selection:** only tags reachable from the release commit count. Tags match `<tag_prefix>v?MAJOR.MINOR.PATCH[-PRERELEASE]`.
-- **Monorepo:** combine `--tag-prefix` and `--path` so each package has its own tags and history:
-
-  ```bash
-  shiptag tag --tag-prefix api/ --path services/api
-  ```
-
-- **Idempotent:** re-running at a commit that is already tagged, with tags fetched, prints `nothing to release` and exits 0 (outputs `released=false`, `version` and `tag` empty). `already released` (also exit 0, `released=false`, with `version` and `tag` set) applies when the tag exists on the provider at the same commit but not in the local clone, or when a GitHub `--draft` release for the tag already exists. If the remote tag points to a different commit, shiptag fails. A computed version whose tag already exists locally on another branch is refused before anything is published.
-- **Merge workflows:** merge commits are left out of the notes and the bump, but their change-request reference (`Merge pull request #N`, `See merge request <path>!N`, `Merged in … (pull request #N)`) is attached to the commits they brought in. A Bitbucket squash commit titled `Merged in <branch> (pull request #N)` is parsed from its first body line, e.g. `feat: add y`.
-
-## Release notes format
-
-```markdown
-## [v1.3.0](<compare-url>) (2026-10-17)
-
-### ⚠ BREAKING CHANGES
-
-- **api:** <breaking note> ([#42](<pr-url>)) ([a1b2c3d](<commit-url>))
-
-### Features
-
-- **cli:** add --path flag ([#40](<pr-url>)) ([d4e5f6a](<commit-url>)), closes [#38](<issue-url>)
-
-### Contributors
-
-Alice, @bob, Carol
-```
-
-- Default sections: Features, Bug Fixes, Performance Improvements, Reverts, Code Refactoring, Documentation. Build, CI, chore, style, test, and non-conventional commits are hidden by default; titles, order, and visibility are configurable.
-- If every commit is hidden, the body is `_No user-facing changes._`
-- Contributors come from commit authors and `Co-authored-by` trailers. Bots are excluded (`exclude_authors`). On GitHub, noreply emails render as `@login`.
 
 ## CI setup
 
-All platforms need a full clone, and shiptag needs the platform's variables. See "Tokens and permissions" for credentials.
+Every pipeline needs a **full clone** and a **token** (see [Platforms](#platforms)). Pin the image to a release tag (for example `ghcr.io/faridlamaul/shiptag:0.1`) instead of `latest` once you depend on it.
 
 ### GitHub Actions
 
@@ -205,64 +85,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - id: shiptag
+        uses: docker://ghcr.io/faridlamaul/shiptag:latest
         with:
-          go-version: stable
-
-      - name: Release
-        id: shiptag
-        run: |
-          go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
-          shiptag tag
+          args: tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Use the version
-        if: steps.shiptag.outputs.released == 'true'
-        run: echo "Released ${{ steps.shiptag.outputs.version }}"
-```
-
-shiptag appends `released`, `version`, `previous_version`, `tag`, `sha`, `bump`, and `url` to `$GITHUB_OUTPUT`.
-
-To use the Docker image instead of `go install`, mount the workspace, run as the runner's user so the output file is writable, and pass the CI variables through:
-
-```yaml
-      - name: Release
-        id: shiptag
-        run: |
-          docker run --rm --user "$(id -u):$(id -g)" \
-            -v "$PWD:/workspace" -w /workspace \
-            -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_SHA \
-            -e GITHUB_TOKEN -e GITHUB_API_URL -e GITHUB_SERVER_URL \
-            ghcr.io/faridlamaul/shiptag:latest tag --output-file shiptag.env
-          cat shiptag.env >> "$GITHUB_OUTPUT"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.shiptag.outputs.released == 'true'
+        run: echo "Released ${{ steps.shiptag.outputs.tag }}"
 ```
 
 ### GitLab CI
 
 ```yaml
-variables:
-  GIT_DEPTH: 0
-
 release:
-  stage: deploy
-  image: golang:1.26
+  image:
+    name: ghcr.io/faridlamaul/shiptag:latest
+    entrypoint: [""]
+  variables:
+    GIT_DEPTH: 0
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
-    - go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
-    - export PATH="$PATH:$(go env GOPATH)/bin"
     - shiptag tag
   artifacts:
     reports:
       dotenv: shiptag.env
 ```
 
-The GHCR image runs as a non-root user (uid 10001), so if you use it as the GitLab job image (with `entrypoint: [""]`), the project directory must be writable by that user.
-
-`shiptag.env` exposes `version`, `tag`, and the other outputs to later jobs via `needs`. The built-in `CI_JOB_TOKEN` is used automatically; it works when the job's user has at least the Developer role. For protected tags or stricter setups, set a masked `GITLAB_TOKEN` variable with the `api` scope. When running the image directly with `docker run`, pass `GITLAB_CI`, `CI_PROJECT_PATH`, `CI_COMMIT_SHA`, `CI_API_V4_URL`, `CI_SERVER_URL`, `CI_JOB_TOKEN`, and `GITLAB_TOKEN`.
+The built-in `CI_JOB_TOKEN` is enough when the pipeline user has the Developer role. For protected tags, set a masked `GITLAB_TOKEN` variable instead.
 
 ### Bitbucket Pipelines
 
@@ -275,49 +127,90 @@ pipelines:
     main:
       - step:
           name: Release
-          image: golang:1.26
+          image: ghcr.io/faridlamaul/shiptag:latest
           script:
-            - go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
-            - export PATH="$PATH:$(go env GOPATH)/bin"
             - shiptag tag
           artifacts:
             - shiptag.env
 ```
 
-The GHCR image runs as a non-root user (uid 10001), so if you use it as the step image, the clone directory must be writable by that user.
+Add `BITBUCKET_TOKEN` as a secured repository variable.
 
-Add `BITBUCKET_TOKEN` as a secured repository variable (a repository access token with `repository:write`). When running the image directly with `docker run`, pass `BITBUCKET_BUILD_NUMBER`, `BITBUCKET_REPO_FULL_NAME`, `BITBUCKET_COMMIT`, and `BITBUCKET_TOKEN`.
+## Usage
 
-### Running the image elsewhere
+| Command | Purpose |
+|---|---|
+| `shiptag tag` | Compute the next version, publish the release, write CI outputs |
+| `shiptag changelog` | Print release notes for unreleased commits |
+| `shiptag next-version` | Print the next tag, or nothing when there is nothing to release |
 
-The image's entrypoint is `shiptag`, and it runs as a non-root user (uid 10001) with `safe.directory '*'` configured, so mounted workspaces owned by any user work:
+| Flag | Applies to | Description |
+|---|---|---|
+| `--dry-run` | `tag` | Print the plan; publish and write nothing |
+| `--json` | `tag` | Print the plan (or the result) as JSON |
+| `--bump auto\|major\|minor\|patch` | `tag`, `next-version` | Force the bump level (default `auto`) |
+| `--version <x.y.z>` | `tag`, `changelog` | Use an explicit version |
+| `--prerelease <id>` | all | Create `-<id>.N` prereleases, e.g. `rc` |
+| `--draft` | `tag` | Create a draft release (GitHub only) |
+| `--changelog-file <path>` | `tag` | Prepend the notes to a file, e.g. `CHANGELOG.md` |
+| `--output-file <path>` | `tag` | Write CI outputs to this file |
+| `--tag-prefix <prefix>` | all | Tag prefix for monorepos, e.g. `api/` |
+| `--path <dir>` | all | Count only commits touching this path |
+| `--provider`, `--repo`, `--ref` | all | Override detection: platform, `owner/repo`, commit to release |
+| `--base-url`, `--api-url` | all | Self-hosted web and API URLs |
+| `--token`, `--config`, `--dir` | all | Token, config file, repository directory |
 
-```bash
-docker run --rm -v "$PWD:/workspace" -w /workspace ghcr.io/faridlamaul/shiptag:latest tag --dry-run
+Run `shiptag <command> --help` for defaults. Flags override `.shiptag.yaml`, which overrides the defaults.
+
+## How versions are calculated
+
+| Commit | Bump |
+|---|---|
+| `type!:` or a `BREAKING CHANGE:` footer | major |
+| `feat` | minor |
+| `fix`, `perf`, `revert` | patch |
+| anything else | none: nothing to release |
+
+- **First release:** `initial_version` (default `0.1.0`).
+- **0.x:** while the version is `0.y.z`, a breaking change bumps minor. Graduate with `--bump major` or `--version 1.0.0`.
+- **Prereleases:** `--prerelease rc` gives `v1.3.0-rc.1`, `-rc.2`, …; the stable `v1.3.0` later covers every commit since the last stable tag.
+- **Monorepos:** `--tag-prefix api/ --path services/api` gives each package its own tags and history.
+- **Re-runs:** an already tagged commit prints `nothing to release` (or `already released` when the tag exists only on the platform) and exits 0. A tag pointing to a different commit is an error.
+
+Only tags reachable from the released commit count. Merge commits are left out of the notes, but their PR/MR number is linked to the commits they merged.
+
+## Release notes
+
+```markdown
+## [v1.3.0](https://github.com/owner/repo/compare/v1.2.0...v1.3.0) (2026-10-17)
+
+### ⚠ BREAKING CHANGES
+
+- **api:** config moved to a new file ([#42](…)) ([a1b2c3d](…))
+
+### Features
+
+- **cli:** add --path flag ([#40](…)) ([d4e5f6a](…)), closes [#38](…)
+
+### Contributors
+
+Alice, @bob, Carol
 ```
 
-## Tokens and permissions
-
-| Provider | Token (checked in order) | Required permission |
-|---|---|---|
-| GitHub | `--token`, `GITHUB_TOKEN`, `GH_TOKEN` | Workflow `permissions: contents: write` |
-| GitLab | `--token`, `GITLAB_TOKEN` (`PRIVATE-TOKEN` header), then `CI_JOB_TOKEN` (`JOB-TOKEN` header) | Developer role; PAT or project token needs the `api` scope |
-| Bitbucket Cloud | `--token`, `BITBUCKET_TOKEN` (Bearer) | Repository access token with `repository:write` |
-
-`--dry-run` needs no token. Without a token on a real run, shiptag names the expected variables for the detected provider.
+Visible by default: Features, Bug Fixes, Performance Improvements, Reverts, Code Refactoring, Documentation. Build, CI, chore, style, test, and non-conventional commits are hidden. Bots are left out of the contributors.
 
 ## Configuration
 
-Optional file `.shiptag.yaml` at the repository root (or `--config <path>`). Unknown fields and invalid values are errors that name the field.
+`.shiptag.yaml` at the repository root is optional. All keys and their defaults:
 
 ```yaml
 tag_prefix: ""              # e.g. "api/"
-v_prefix: true              # new tags are v1.2.3
+v_prefix: true              # tags look like v1.2.3
 initial_version: 0.1.0
 initial_development: true   # 0.x: breaking changes bump minor
 path: ""                    # count only commits touching this path
 
-release_rules:              # type -> major | minor | patch | none
+release_rules:              # merged over the defaults; major | minor | patch | none
   feat: minor
   fix: patch
   perf: patch
@@ -331,47 +224,24 @@ sections:                   # replaces the default list when set
 other_section: { title: Other Changes, hidden: true }
 
 exclude_authors: ["[bot]", dependabot, renovate]
-changelog_file: ""          # e.g. CHANGELOG.md
+changelog_file: ""          # e.g. CHANGELOG.md (prepended, not committed)
 ```
 
-`release_rules` merges over the defaults; `sections` replaces them. With `changelog_file` (or `--changelog-file`), the notes are prepended to that file (created with a `# Changelog` heading if missing). The file is not committed; do that in your pipeline.
+Unknown keys and invalid values are reported with the key name.
 
-## Outputs
+## Outputs and exit codes
 
-| Key | Meaning |
+| Key | Value |
 |---|---|
-| `released` | `true` if a release was published, otherwise `false` |
-| `version` | New version without prefix, e.g. `1.3.0` |
-| `previous_version` | Version of the notes base: the previous stable version, or with `--prerelease` the latest tag of any kind (e.g. `1.3.0-rc.1`); empty for a first release |
-| `tag` | New tag, e.g. `v1.3.0` |
-| `sha` | Commit that was released |
-| `bump` | `major`, `minor`, `patch`, `initial` (first release), or `explicit` (`--version`) |
-| `url` | URL of the release |
+| `released` | `true` when a release was published |
+| `version`, `tag` | New version (`1.3.0`) and tag (`v1.3.0`) |
+| `previous_version` | Version the notes start from; empty for a first release |
+| `sha`, `url` | Released commit and release URL |
+| `bump` | `major`, `minor`, `patch`, `initial`, or `explicit` |
 
-| Environment | Destination |
-|---|---|
-| GitHub Actions | appended to `$GITHUB_OUTPUT` |
-| GitLab CI | `shiptag.env` (use `artifacts:reports:dotenv`) |
-| Bitbucket Pipelines | `shiptag.env` (share via `artifacts`) |
-| Elsewhere | `KEY=VALUE` lines on stdout (suppressed with `--json`) |
+Outputs go to `$GITHUB_OUTPUT` on GitHub, `shiptag.env` on GitLab and Bitbucket, and stdout elsewhere (`--output-file` overrides this).
 
-`--output-file` overrides the destination.
-
-## Exit codes
-
-- `0`: released, nothing to release, already released, or dry-run.
-- `1`: any error, including a shallow clone, a missing `git` binary, a missing token, or a tag that already points to another commit.
-
-## Migrating from the previous CLI
-
-- **Default trigger:** only `feat`, `fix`, `perf`, `revert`, and breaking commits create a release. Docs, chore, and CI-only commits no longer cause a patch release; use `release_rules` to change this.
-- **`--ref` default:** the CI commit SHA, else `HEAD` (previously the default branch). Branch names are resolved to a full SHA.
-- **Full clone required:** tags and commits are read from the local clone; shallow clones fail.
-- **Notes format:** release notes use the new categorized layout described above.
-- **Outputs:** written to `$GITHUB_OUTPUT` or `shiptag.env` instead of only stdout.
-- **`-v` removed:** use `--version`.
-- **`pkg/` removed:** code now lives under `internal/`; shiptag is a CLI, not a library.
-- **Renamed:** the module is `github.com/faridlamaul/shiptag` and the image is `ghcr.io/faridlamaul/shiptag`.
+shiptag exits `0` when it released, when there is nothing to release, or when the release already exists, and `1` on any error (for example a shallow clone or a missing token).
 
 ## License
 
