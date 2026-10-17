@@ -1,5 +1,6 @@
 # shiptag
 
+[![Release](https://github.com/faridlamaul/shiptag/actions/workflows/release.yml/badge.svg)](https://github.com/faridlamaul/shiptag/actions/workflows/release.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -28,7 +29,9 @@ docker pull ghcr.io/faridlamaul/shiptag:latest                 # Docker
 go install github.com/faridlamaul/shiptag/cmd/shiptag@latest  # Go 1.26+
 ```
 
-To build from source, run `make build` (writes `bin/shiptag`) or `make install` (copies it to `~/.local/bin`).
+Prebuilt binaries for Linux, macOS, and Windows (amd64 and arm64) are attached to every [GitHub Release](https://github.com/faridlamaul/shiptag/releases) together with `checksums.txt`. To build from source, run `make build`.
+
+Image tags follow the release: `X.Y.Z`, `X.Y`, `X`, and `latest` (the newest stable release). Each image is built for `linux/amd64` and `linux/arm64` with provenance and an SBOM.
 
 ## Quick start
 
@@ -242,6 +245,12 @@ Unknown keys and invalid values are reported with the key name.
 Outputs go to `$GITHUB_OUTPUT` on GitHub, `shiptag.env` on GitLab and Bitbucket, and stdout elsewhere (`--output-file` overrides this).
 
 shiptag exits `0` when it released, when there is nothing to release, or when the release already exists, and `1` on any error (for example a shallow clone or a missing token).
+
+## Contributing
+
+Pull requests are squash-merged, and the PR title becomes the commit message that shiptag releases from, so it must be a [Conventional Commit](https://www.conventionalcommits.org/) such as `feat(cli): add --path flag`. Before opening a PR, run `make fmt-check vet test`.
+
+Every merge to `main` runs the test suite and then releases this repository with shiptag itself: it tags the version, publishes the notes, attaches the binaries, and pushes the image. Merges with only `docs`, `chore`, `ci`, or similar commits release nothing.
 
 ## License
 
