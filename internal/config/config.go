@@ -108,9 +108,9 @@ func Load(path, topLevel string) (Config, error) {
 func (c Config) Validate() error {
 	for typ, bump := range c.ReleaseRules {
 		switch bump {
-		case "major", "minor", "patch":
+		case "major", "minor", "patch", "none":
 		default:
-			return fmt.Errorf("release_rules: %q has invalid bump %q (want major, minor or patch)", typ, bump)
+			return fmt.Errorf("release_rules: %q has invalid bump %q (want major, minor, patch or none)", typ, bump)
 		}
 	}
 	if _, err := semver.StrictNewVersion(strings.TrimPrefix(c.InitialVersion, "v")); err != nil {

@@ -138,3 +138,14 @@ func TestLoadValidates(t *testing.T) {
 		t.Fatal("expected validation error")
 	}
 }
+
+func TestLoadAcceptsNoneRule(t *testing.T) {
+	p, dir := write(t, "release_rules: {revert: none}\n")
+	c, err := Load(p, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ReleaseRules["revert"] != "none" {
+		t.Errorf("revert = %q", c.ReleaseRules["revert"])
+	}
+}
