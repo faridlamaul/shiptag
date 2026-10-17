@@ -21,7 +21,7 @@ shiptag analyzes Conventional Commits in your local git clone, calculates the ne
 |---|---|---|---|
 | Hosts | github.com, GitHub Enterprise Server | gitlab.com, self-managed | bitbucket.org |
 | What "release" means | GitHub Release (draft and prerelease supported) | GitLab Release | Annotated tag whose message carries the notes (Bitbucket has no Releases feature) |
-| Change request links | `(#N)` | `(!N)` | `(pull request #N)` |
+| Change request links | `(#N)`, `Merge pull request #N from …` | `(!N)`, `See merge request <path>!N` | `(pull request #N)`, `Merged in <branch> (pull request #N)` |
 | `--draft` | Yes | No | No |
 
 ## Installation
@@ -157,7 +157,8 @@ Each counted commit maps to a level; the highest wins.
   shiptag tag --tag-prefix api/ --path services/api
   ```
 
-- **Idempotent:** re-running on the same commit prints `already released` and exits 0. If the tag exists at a different commit, shiptag fails.
+- **Idempotent:** re-running at a commit that is already tagged, with tags fetched, prints `nothing to release` and exits 0 (outputs `released=false`, `version` and `tag` empty). `already released` (also exit 0, `released=false`, with `version` and `tag` set) applies when the tag exists on the provider at the same commit but not in the local clone, or when a GitHub `--draft` release for the tag already exists. If the remote tag points to a different commit, shiptag fails. A computed version whose tag already exists locally on another branch is refused before anything is published.
+- **Merge workflows:** merge commits are left out of the notes and the bump, but their change-request reference (`Merge pull request #N`, `See merge request <path>!N`, `Merged in … (pull request #N)`) is attached to the commits they brought in. A Bitbucket squash commit titled `Merged in <branch> (pull request #N)` is parsed from its first body line, e.g. `feat: add y`.
 
 ## Release notes format
 
@@ -274,12 +275,16 @@ pipelines:
     main:
       - step:
           name: Release
-          image: ghcr.io/faridlamaul/shiptag:latest
+          image: golang:1.26
           script:
+            - go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
+            - export PATH="$PATH:$(go env GOPATH)/bin"
             - shiptag tag
           artifacts:
             - shiptag.env
 ```
+
+The GHCR image runs as a non-root user (uid 10001), so if you use it as the step image, the clone directory must be writable by that user.
 
 Add `BITBUCKET_TOKEN` as a secured repository variable (a repository access token with `repository:write`). When running the image directly with `docker run`, pass `BITBUCKET_BUILD_NUMBER`, `BITBUCKET_REPO_FULL_NAME`, `BITBUCKET_COMMIT`, and `BITBUCKET_TOKEN`.
 
@@ -337,10 +342,10 @@ changelog_file: ""          # e.g. CHANGELOG.md
 |---|---|
 | `released` | `true` if a release was published, otherwise `false` |
 | `version` | New version without prefix, e.g. `1.3.0` |
-| `previous_version` | Previous stable version |
+| `previous_version` | Version of the notes base: the previous stable version, or with `--prerelease` the latest tag of any kind (e.g. `1.3.0-rc.1`); empty for a first release |
 | `tag` | New tag, e.g. `v1.3.0` |
 | `sha` | Commit that was released |
-| `bump` | `major`, `minor`, `patch`, or `initial` |
+| `bump` | `major`, `minor`, `patch`, `initial` (first release), or `explicit` (`--version`) |
 | `url` | URL of the release |
 
 | Environment | Destination |
