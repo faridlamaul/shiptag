@@ -500,3 +500,18 @@ func TestBadRefAndEmptyRepository(t *testing.T) {
 		t.Errorf("bad ref: exit %d, stderr %q", code, errOut)
 	}
 }
+
+func TestUnreachableTagRefused(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("feat: a", "a")
+	f.Tag("v0.1.0", false)
+	f.Git("checkout", "-q", "-b", "other")
+	f.Commit("feat: b", "b")
+	f.Tag("v0.2.0", false)
+	f.Git("checkout", "-q", "main")
+	f.Commit("feat: c", "c")
+	code, _, errOut := runCLI(t, nil, "tag", "--dry-run", "--provider", "github", "--repo", "o/r", "--dir", f.Dir)
+	if code != 1 || !strings.Contains(errOut, "tag v0.2.0 already exists (not reachable from the target commit)") {
+		t.Errorf("exit %d, stderr %q", code, errOut)
+	}
+}

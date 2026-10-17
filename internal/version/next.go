@@ -106,7 +106,8 @@ func nextInitial(all []Tag, o Options) (Result, error) {
 	return finish(v, "initial", all, o)
 }
 
-// finish applies prerelease numbering (if requested) and builds the result.
+// finish applies prerelease numbering (if requested), refuses versions that
+// already exist as a tag, and builds the result.
 func finish(core *semver.Version, bumpName string, all []Tag, o Options) (Result, error) {
 	v := core
 	if o.Prerelease != "" {
@@ -133,6 +134,13 @@ func finish(core *semver.Version, bumpName string, all []Tag, o Options) (Result
 			return Result{}, fmt.Errorf("invalid prerelease identifier %q: %w", o.Prerelease, err)
 		}
 		v = pv
+	}
+	// The stable base is the highest reachable stable tag, so a collision
+	// here is a tag on another branch; publishing it would fail later.
+	for _, t := range all {
+		if t.Version.Equal(v) {
+			return Result{}, fmt.Errorf("tag %s already exists (not reachable from the target commit)", t.Name)
+		}
 	}
 	return Result{Release: true, Version: v, Tag: o.Scheme.Format(v), Bump: bumpName}, nil
 }

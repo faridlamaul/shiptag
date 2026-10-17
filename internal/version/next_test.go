@@ -44,6 +44,10 @@ func TestNext(t *testing.T) {
 		{"prerelease new id", tagp("v1.2.0"), Minor, []Tag{tag("v1.3.0-rc.1")}, with(func(o *Options) { o.Prerelease = "beta" }), true, "v1.3.0-beta.1", "minor", ""},
 		{"prerelease none", tagp("v1.2.0"), None, nil, with(func(o *Options) { o.Prerelease = "rc" }), false, "", "", ""},
 		{"unknown bump", tagp("v1.2.0"), Minor, nil, with(func(o *Options) { o.Bump = "huge" }), false, "", "", "bump"},
+		{"unreachable tag exists", tagp("v0.1.0"), Minor, []Tag{tag("v0.1.0"), tag("v0.2.0")}, base, false, "", "", "tag v0.2.0 already exists (not reachable from the target commit)"},
+		{"unreachable tag exists bump", tagp("v1.2.0"), None, []Tag{tag("v1.2.1")}, with(func(o *Options) { o.Bump = "patch" }), false, "", "", "tag v1.2.1 already exists"},
+		{"unreachable initial exists", nil, None, []Tag{tag("v0.1.0")}, base, false, "", "", "tag v0.1.0 already exists"},
+		{"existing prerelease skipped", tagp("v1.2.0"), Minor, []Tag{tag("v1.2.0"), tag("v1.3.0-rc.1")}, base, true, "v1.3.0", "minor", ""},
 		{"explicit beats prerelease", tagp("v1.2.0"), Minor, nil, with(func(o *Options) { o.Explicit = "2.0.0"; o.Prerelease = "rc" }), true, "v2.0.0", "explicit", ""},
 	}
 	for _, tt := range tests {
