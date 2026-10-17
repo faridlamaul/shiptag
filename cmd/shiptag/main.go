@@ -1,252 +1,292 @@
+// Command shiptag computes semantic versions and release notes from the local
+// git clone and publishes releases to GitHub, GitLab, or Bitbucket Cloud.
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/faridlamaul/shiptag/pkg/changelog"
-	"github.com/faridlamaul/shiptag/pkg/githubclient"
-	"github.com/faridlamaul/shiptag/pkg/semver"
+	"github.com/faridlamaul/shiptag/internal/output"
+	"github.com/faridlamaul/shiptag/internal/provider"
 	"github.com/spf13/cobra"
 )
 
-var (
-	flagRepo       string
-	flagToken      string
-	flagRef        string
-	flagBump       string
-	flagVersion    string
-	flagDryRun     bool
-	flagDraft      bool
-	flagPrerelease bool
-)
+// version is set at build time with -ldflags "-X main.version=…".
+var version = "dev"
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	os.Exit(run(os.Args[1:], os.Getenv, os.Stdout, os.Stderr))
+}
 
-	rootCmd := &cobra.Command{
+// run executes the CLI with injected arguments, environment, and writers and
+// returns the process exit code.
+func run(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	g := &globals{}
+	var secrets []string // values redacted from error messages
+	logger := log.New(stderr, "", 0)
+
+	analyzeFor := func(cmd *cobra.Command, req request) (*analysis, error) {
+		a, err := analyze(cmd, g, req, getenv, logger)
+		if a != nil && a.info.Token != "" {
+			secrets = append(secrets, a.info.Token)
+		}
+		return a, err
+	}
+
+	root := &cobra.Command{
 		Use:   "shiptag",
-		Short: "Semantic versioning and release automation for GitHub",
-		Long: `⚡ shiptag — Semantic Versioning and Release Automation for GitHub
-
-Analyzes Conventional Commits, calculates the next semantic version tag,
-generates changelog release notes, and publishes GitHub Releases.`,
+		Short: "Semantic versioning and release automation for GitHub, GitLab, and Bitbucket",
+		Long: `shiptag analyzes Conventional Commits in the local git clone, calculates the
+next semantic version, renders release notes, and publishes the release to
+GitHub, GitLab, or Bitbucket Cloud.`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
+	root.SetArgs(args)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	pf := root.PersistentFlags()
+	pf.StringVar(&g.provider, "provider", "", "hosting provider: github, gitlab, or bitbucket (default: detected)")
+	pf.StringVar(&g.repo, "repo", "", "repository path, e.g. owner/repo (default: from CI or the origin remote)")
+	pf.StringVar(&g.ref, "ref", "", "commit to release (default: the CI commit SHA, else HEAD)")
+	pf.StringVar(&g.baseURL, "base-url", "", "web base URL for self-hosted instances")
+	pf.StringVar(&g.apiURL, "api-url", "", "API base URL (default: derived from the web base URL)")
+	pf.StringVar(&g.token, "token", "", "API token (default: from the provider's environment variables)")
+	pf.StringVar(&g.config, "config", "", "config file (default: .shiptag.yaml in the repository root)")
+	pf.StringVar(&g.dir, "dir", ".", "repository directory")
+	pf.StringVar(&g.tagPrefix, "tag-prefix", "", "version tag prefix, e.g. api/")
+	pf.StringVar(&g.path, "path", "", "count only commits touching this path")
 
-	rootCmd.PersistentFlags().StringVarP(&flagRepo, "repo", "r", os.Getenv("GITHUB_REPOSITORY"), "GitHub repository slug (owner/repo)")
-	rootCmd.PersistentFlags().StringVarP(&flagToken, "token", "t", "", "GitHub token (or GITHUB_TOKEN env)")
-	rootCmd.PersistentFlags().StringVar(&flagRef, "ref", getEnvDefault("GITHUB_SHA", "main"), "Target commit SHA or branch name")
+	root.AddCommand(
+		tagCmd(analyzeFor, getenv, stdout, logger),
+		changelogCmd(analyzeFor, stdout),
+		nextVersionCmd(analyzeFor, stdout, logger),
+	)
 
-	// 1. tag command: semantic bump + tag + release notes
-	tagCmd := &cobra.Command{
+	if err := root.Execute(); err != nil {
+		msg := err.Error()
+		for _, s := range append(secrets, g.token) {
+			if s != "" {
+				msg = strings.ReplaceAll(msg, s, "***")
+			}
+		}
+		fmt.Fprintf(stderr, "error: %s\n", msg)
+		return 1
+	}
+	return 0
+}
+
+type analyzer func(cmd *cobra.Command, req request) (*analysis, error)
+
+func validBump(b string) error {
+	switch b {
+	case "auto", "major", "minor", "patch":
+		return nil
+	}
+	return fmt.Errorf("invalid --bump %q: want auto, major, minor, or patch", b)
+}
+
+func tagCmd(analyzeFor analyzer, getenv func(string) string, stdout io.Writer, logger *log.Logger) *cobra.Command {
+	var (
+		bump, explicit, prerelease, changelogFile, outputFile string
+		draft, dryRun, asJSON                                 bool
+	)
+	cmd := &cobra.Command{
 		Use:   "tag",
-		Short: "Calculate next version, create git tag, and publish GitHub Release",
-		RunE:  runTag,
-	}
-	tagCmd.Flags().StringVarP(&flagBump, "bump", "b", "auto", "Version bump: auto, major, minor, or patch")
-	tagCmd.Flags().StringVarP(&flagVersion, "version", "v", "", "Explicit version override (e.g. v1.2.3)")
-	tagCmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "Preview next version and release notes without making changes")
-	tagCmd.Flags().BoolVar(&flagDraft, "draft", false, "Create release as draft")
-	tagCmd.Flags().BoolVar(&flagPrerelease, "prerelease", false, "Create release as prerelease")
+		Short: "Compute the next version, publish the release, and write CI outputs",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validBump(bump); err != nil {
+				return err
+			}
+			req := request{bump: bump, explicit: explicit, prerelease: prerelease, needVersion: true}
+			a, err := analyzeFor(cmd, req)
+			if err != nil {
+				return err
+			}
+			if draft && a.info.Name != "github" {
+				return fmt.Errorf("--draft is only supported for GitHub; %s has no draft releases", a.info.Name)
+			}
+			if cmd.Flags().Changed("changelog-file") {
+				a.cfg.ChangelogFile = changelogFile
+			}
+			dest := output.Destination(a.info.Name, a.info.InCI, outputFile, getenv)
+			// With --json the stdout KEY=VALUE fallback is suppressed.
+			writeOutputs := !(asJSON && dest == "")
+			destName := dest
+			if destName == "" {
+				destName = "stdout"
+			}
+			p := newPlan(a, req, dryRun)
+			emit := func() error {
+				if asJSON {
+					return p.writeJSON(stdout)
+				}
+				if dryRun {
+					return p.writeHuman(stdout)
+				}
+				return nil
+			}
+			vals := output.Values{PreviousVersion: a.previousVersion()}
 
-	// 2. changelog command: preview release notes
-	changelogCmd := &cobra.Command{
+			if !a.release {
+				logger.Println("nothing to release")
+				if !dryRun && writeOutputs {
+					if err := output.Write(dest, vals, stdout); err != nil {
+						return fmt.Errorf("write outputs: %w", err)
+					}
+					p.Actions = append(p.Actions, "wrote outputs to "+destName)
+				}
+				if asJSON {
+					return p.writeJSON(stdout)
+				}
+				return nil
+			}
+
+			tag := a.result.Tag
+			p.Notes, p.Commits.Counted, p.Commits.Hidden = a.render(tag, tag)
+			vals.Version, vals.Tag, vals.SHA, vals.Bump = p.Version, tag, a.sha, p.Bump
+
+			if dryRun {
+				p.Actions = append(p.Actions, publishAction(a.info.Name, tag, a.sha, draft, true))
+				if writeOutputs {
+					p.Actions = append(p.Actions, "would write outputs to "+destName)
+				}
+				if a.cfg.ChangelogFile != "" {
+					p.Actions = append(p.Actions, "would prepend "+a.cfg.ChangelogFile)
+				}
+				return emit()
+			}
+
+			if a.info.Token == "" {
+				return errors.New("missing token: " + provider.TokenHelp(a.info.Name))
+			}
+			prov, err := newProvider(a.info, "shiptag/"+version)
+			if err != nil {
+				return err
+			}
+			ctx := context.Background()
+			remoteSHA, found, err := prov.TagSHA(ctx, tag)
+			if err != nil {
+				return err
+			}
+			if found && remoteSHA != a.sha {
+				return fmt.Errorf("tag %s already points to %s, expected %s", tag, remoteSHA, a.sha)
+			}
+			if found {
+				exists, err := prov.ReleaseExists(ctx, tag)
+				if err != nil {
+					return err
+				}
+				if exists {
+					logger.Println("already released")
+					p.Actions = append(p.Actions, fmt.Sprintf("release %s already exists at %s", tag, short(a.sha, 7)))
+					if writeOutputs {
+						if err := output.Write(dest, vals, stdout); err != nil {
+							return fmt.Errorf("write outputs: %w", err)
+						}
+						p.Actions = append(p.Actions, "wrote outputs to "+destName)
+					}
+					return emit()
+				}
+			}
+
+			url, err := prov.Publish(ctx, provider.Release{
+				Tag: tag, SHA: a.sha, Name: tag, Notes: p.Notes,
+				Draft: draft, Prerelease: a.result.Version.Prerelease() != "",
+			})
+			if err != nil {
+				return err
+			}
+			logger.Printf("released %s: %s", tag, url)
+			p.Released, p.URL = true, url
+			p.Actions = append(p.Actions, publishAction(a.info.Name, tag, a.sha, draft, false))
+			vals.Released, vals.URL = true, url
+			if writeOutputs {
+				if err := output.Write(dest, vals, stdout); err != nil {
+					return fmt.Errorf("write outputs: %w", err)
+				}
+				p.Actions = append(p.Actions, "wrote outputs to "+destName)
+			}
+			if a.cfg.ChangelogFile != "" {
+				if err := output.PrependChangelog(a.cfg.ChangelogFile, p.Notes); err != nil {
+					return fmt.Errorf("update changelog: %w", err)
+				}
+				p.Actions = append(p.Actions, "prepended "+a.cfg.ChangelogFile)
+			}
+			return emit()
+		},
+	}
+	f := cmd.Flags()
+	f.StringVar(&bump, "bump", "auto", "version bump: auto, major, minor, or patch")
+	f.StringVar(&explicit, "version", "", "explicit version, e.g. 1.4.0 or v1.4.0")
+	f.StringVar(&prerelease, "prerelease", "", "prerelease identifier, e.g. rc or beta")
+	f.BoolVar(&draft, "draft", false, "create a draft release (GitHub only)")
+	f.BoolVar(&dryRun, "dry-run", false, "print the plan without publishing or writing files")
+	f.BoolVar(&asJSON, "json", false, "print the plan as JSON")
+	f.StringVar(&changelogFile, "changelog-file", "", "prepend the release notes to this file")
+	f.StringVar(&outputFile, "output-file", "", "append CI outputs to this file (default: detected from CI)")
+	return cmd
+}
+
+func changelogCmd(analyzeFor analyzer, stdout io.Writer) *cobra.Command {
+	var explicit, prerelease string
+	cmd := &cobra.Command{
 		Use:   "changelog",
-		Short: "Generate and print release notes to stdout",
-		RunE:  runChangelog,
+		Short: "Print release notes for unreleased commits",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			a, err := analyzeFor(cmd, request{prerelease: prerelease})
+			if err != nil {
+				return err
+			}
+			heading, compareTo := "Unreleased", short(a.sha, 7)
+			if explicit != "" {
+				v, err := a.scheme.Normalize(explicit)
+				if err != nil {
+					return err
+				}
+				heading = a.scheme.Format(v)
+				compareTo = heading
+			}
+			md, _, _ := a.render(heading, compareTo)
+			_, err = io.WriteString(stdout, md)
+			return err
+		},
 	}
-	changelogCmd.Flags().StringVarP(&flagVersion, "version", "v", "", "Target version name")
+	cmd.Flags().StringVar(&explicit, "version", "", "version to use as the heading instead of Unreleased")
+	cmd.Flags().StringVar(&prerelease, "prerelease", "", "cover commits since the latest tag of any kind")
+	return cmd
+}
 
-	// 3. next-version command: print only next version string (ideal for CI pipelines)
-	nextVerCmd := &cobra.Command{
+func nextVersionCmd(analyzeFor analyzer, stdout io.Writer, logger *log.Logger) *cobra.Command {
+	var bump, prerelease string
+	cmd := &cobra.Command{
 		Use:   "next-version",
-		Short: "Calculate and print next version string to stdout",
-		RunE:  runNextVersion,
-	}
-	nextVerCmd.Flags().StringVarP(&flagBump, "bump", "b", "auto", "Version bump: auto, major, minor, or patch")
-
-	rootCmd.AddCommand(tagCmd, changelogCmd, nextVerCmd)
-
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
-}
-
-func getEnvDefault(key, fallback string) string {
-	if val := os.Getenv(key); val != "" {
-		return val
-	}
-	return fallback
-}
-
-func runTag(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
-	client, err := githubclient.NewClient(ctx, flagToken, flagRepo)
-	if err != nil {
-		return err
-	}
-
-	tags, err := client.ListTags(ctx)
-	if err != nil {
-		return err
-	}
-
-	latestTag, _ := semver.LatestStrictTag(tags)
-	log.Printf("Latest semantic tag: %q", latestTag)
-
-	// Fetch commits between latest tag and target ref
-	commits, err := client.GetCommitsSinceTag(ctx, latestTag, flagRef)
-	if err != nil {
-		return err
-	}
-	log.Printf("Found %d commit(s) since %q on %s", len(commits), latestTag, flagRef)
-
-	if len(commits) == 0 && flagVersion == "" {
-		log.Println("No new commits found. Skipping release.")
-		return nil
-	}
-
-	// Determine next version
-	nextVer := flagVersion
-	hasBreaking := false
-	hasFeatures := false
-
-	// Generate temporary notes to detect breaking / features
-	_, hasBreaking, hasFeatures = changelog.GenerateReleaseNotes(commits, changelog.ReleaseMeta{
-		RepoOwner:   client.Owner,
-		RepoName:    client.Repo,
-		PreviousTag: latestTag,
-		NewTag:      "preview",
-	})
-
-	if nextVer == "" {
-		bumpType := flagBump
-		if bumpType == "auto" {
-			bumpType = semver.AutoBumpType(hasBreaking, hasFeatures)
-		}
-		log.Printf("Determined bump type: %s (breaking=%v, feat=%v)", bumpType, hasBreaking, hasFeatures)
-
-		nextVer, err = semver.NextVersion(latestTag, bumpType)
-		if err != nil {
+		Short: "Print the next tag, or nothing when there is nothing to release",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validBump(bump); err != nil {
+				return err
+			}
+			a, err := analyzeFor(cmd, request{bump: bump, prerelease: prerelease, needVersion: true})
+			if err != nil {
+				return err
+			}
+			if !a.release {
+				logger.Println("nothing to release")
+				return nil
+			}
+			_, err = fmt.Fprintln(stdout, a.result.Tag)
 			return err
-		}
+		},
 	}
-	log.Printf("Target version: %s", nextVer)
-
-	// Generate final release notes with target version
-	notes, _, _ := changelog.GenerateReleaseNotes(commits, changelog.ReleaseMeta{
-		RepoOwner:   client.Owner,
-		RepoName:    client.Repo,
-		PreviousTag: latestTag,
-		NewTag:      nextVer,
-		Branch:      flagRef,
-	})
-
-	if flagDryRun {
-		fmt.Printf("\n[DRY-RUN] Target Version: %s\n", nextVer)
-		fmt.Printf("[DRY-RUN] Target Commit:  %s\n", flagRef)
-		fmt.Printf("\n--- RELEASE NOTES PREVIEW ---\n%s\n", notes)
-		return nil
-	}
-
-	// 1. Create Git Tag
-	log.Printf("Creating git tag %s on %s...", nextVer, flagRef)
-	if err := client.CreateTag(ctx, nextVer, flagRef); err != nil {
-		// If tag already exists or failed, log warning and try release
-		if strings.Contains(err.Error(), "already exists") {
-			log.Printf("Tag %s already exists, proceeding to update release...", nextVer)
-		} else {
-			return err
-		}
-	}
-
-	// 2. Create GitHub Release
-	log.Printf("Creating GitHub Release for %s...", nextVer)
-	rel, err := client.CreateRelease(ctx, nextVer, flagRef, nextVer, notes, flagDraft, flagPrerelease)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("✓ Successfully created release: %s", rel.GetHTMLURL())
-	fmt.Printf("RELEASE_VERSION=%s\n", nextVer)
-	fmt.Printf("RELEASE_URL=%s\n", rel.GetHTMLURL())
-
-	return nil
-}
-
-func runChangelog(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
-	client, err := githubclient.NewClient(ctx, flagToken, flagRepo)
-	if err != nil {
-		return err
-	}
-
-	tags, err := client.ListTags(ctx)
-	if err != nil {
-		return err
-	}
-
-	latestTag, _ := semver.LatestStrictTag(tags)
-	commits, err := client.GetCommitsSinceTag(ctx, latestTag, flagRef)
-	if err != nil {
-		return err
-	}
-
-	tagLabel := flagVersion
-	if tagLabel == "" {
-		tagLabel = "Next Version"
-	}
-
-	notes, _, _ := changelog.GenerateReleaseNotes(commits, changelog.ReleaseMeta{
-		RepoOwner:   client.Owner,
-		RepoName:    client.Repo,
-		PreviousTag: latestTag,
-		NewTag:      tagLabel,
-		Branch:      flagRef,
-	})
-
-	fmt.Println(notes)
-	return nil
-}
-
-func runNextVersion(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
-	client, err := githubclient.NewClient(ctx, flagToken, flagRepo)
-	if err != nil {
-		return err
-	}
-
-	tags, err := client.ListTags(ctx)
-	if err != nil {
-		return err
-	}
-
-	latestTag, _ := semver.LatestStrictTag(tags)
-	commits, err := client.GetCommitsSinceTag(ctx, latestTag, flagRef)
-	if err != nil {
-		return err
-	}
-
-	_, hasBreaking, hasFeatures := changelog.GenerateReleaseNotes(commits, changelog.ReleaseMeta{
-		RepoOwner:   client.Owner,
-		RepoName:    client.Repo,
-		PreviousTag: latestTag,
-		NewTag:      "preview",
-	})
-
-	bumpType := flagBump
-	if bumpType == "auto" {
-		bumpType = semver.AutoBumpType(hasBreaking, hasFeatures)
-	}
-
-	nextVer, err := semver.NextVersion(latestTag, bumpType)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(nextVer)
-	return nil
+	cmd.Flags().StringVar(&bump, "bump", "auto", "version bump: auto, major, minor, or patch")
+	cmd.Flags().StringVar(&prerelease, "prerelease", "", "prerelease identifier, e.g. rc or beta")
+	return cmd
 }

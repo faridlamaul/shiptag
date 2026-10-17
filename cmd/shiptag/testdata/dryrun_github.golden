@@ -1,0 +1,20 @@
+Provider:     github (o/r)
+Ref:          HEAD → <head8>…
+Previous tag: v1.2.0
+Next tag:     v1.3.0 (minor)
+Reason:       minor ← feat(cli): add --path flag (<feat7>)
+Commits:      1 counted, 1 hidden
+Actions:
+  - would create release v1.3.0 at <head7> (draft=false)
+  - would write outputs to stdout
+
+--- Release notes ---
+## [v1.3.0](https://github.com/o/r/compare/v1.2.0...v1.3.0) (2026-10-17)
+
+### Features
+
+- **cli:** add --path flag ([#40](https://github.com/o/r/pull/40)) ([<feat7>](https://github.com/o/r/commit/<feat>))
+
+### Contributors
+
+Test
