@@ -1,0 +1,33 @@
+version: 2
+
+project_name: shiptag
+
+builds:
+  - id: shiptag
+    main: ./cmd/shiptag
+    binary: shiptag
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+# shiptag writes the release notes; GoReleaser only uploads the archives.
+changelog:
+  disable: true
+
+release:
+  mode: keep-existing
