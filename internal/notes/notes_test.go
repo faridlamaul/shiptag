@@ -132,3 +132,15 @@ func TestRenderEscapesSubjects(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderEmaillessContributors(t *testing.T) {
+	cs := []commits.Commit{{
+		SHA: "aaaaaaa1", Type: "feat", Subject: "x",
+		Author:    p("Zoe", "zoe@x"),
+		CoAuthors: []commits.Person{p("Ann", ""), p("Ben", ""), p("ann", "")},
+	}}
+	got, _, _ := Render(cs, opts())
+	if !strings.Contains(got, "### Contributors\n\nAnn, Ben, Zoe\n") {
+		t.Fatalf("got %q", got)
+	}
+}

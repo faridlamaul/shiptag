@@ -146,11 +146,14 @@ func contributors(cs []commits.Commit, o Options) []string {
 	var out []string
 	add := func(p commits.Person) {
 		key := strings.ToLower(p.Email)
+		if key == "" {
+			key = "name:" + strings.ToLower(p.Name)
+		}
 		if seen[key] {
 			return
 		}
 		seen[key] = true
-		name, email := strings.ToLower(p.Name), key
+		name, email := strings.ToLower(p.Name), strings.ToLower(p.Email)
 		for _, pat := range o.ExcludeAuthors {
 			pat = strings.ToLower(pat)
 			if pat != "" && (strings.Contains(name, pat) || strings.Contains(email, pat)) {
@@ -167,6 +170,7 @@ func contributors(cs []commits.Commit, o Options) []string {
 			add(co)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i]) < strings.ToLower(out[j]) })
+	sortKey := func(s string) string { return strings.ToLower(strings.TrimPrefix(s, "@")) }
+	sort.SliceStable(out, func(i, j int) bool { return sortKey(out[i]) < sortKey(out[j]) })
 	return out
 }

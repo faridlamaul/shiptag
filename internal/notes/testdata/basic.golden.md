@@ -17,4 +17,4 @@
 
 ### Contributors
 
-@bob, alice, Carol, Dave, Erin, Frank, Zed
+alice, @bob, Carol, Dave, Erin, Frank, Zed
