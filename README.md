@@ -48,7 +48,7 @@ shiptag needs the **full git history**; shallow clones are rejected. Preview a r
 shiptag tag --dry-run
 ```
 
-Real output from this repository:
+Example output from this repository:
 
 ```text
 Provider:     github (faridlamaul/shiptag)
@@ -247,17 +247,19 @@ variables:
 
 release:
   stage: deploy
-  image:
-    name: ghcr.io/faridlamaul/shiptag:latest
-    entrypoint: [""]
+  image: golang:1.26
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
+    - go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
+    - export PATH="$PATH:$(go env GOPATH)/bin"
     - shiptag tag
   artifacts:
     reports:
       dotenv: shiptag.env
 ```
+
+The GHCR image runs as a non-root user (uid 10001), so if you use it as the GitLab job image (with `entrypoint: [""]`), the project directory must be writable by that user.
 
 `shiptag.env` exposes `version`, `tag`, and the other outputs to later jobs via `needs`. The built-in `CI_JOB_TOKEN` is used automatically; it works when the job's user has at least the Developer role. For protected tags or stricter setups, set a masked `GITLAB_TOKEN` variable with the `api` scope. When running the image directly with `docker run`, pass `GITLAB_CI`, `CI_PROJECT_PATH`, `CI_COMMIT_SHA`, `CI_API_V4_URL`, `CI_SERVER_URL`, `CI_JOB_TOKEN`, and `GITLAB_TOKEN`.
 
