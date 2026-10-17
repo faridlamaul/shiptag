@@ -101,7 +101,7 @@ jobs:
 | `args` | | Extra flags separated by spaces, e.g. `--dry-run` or `--tag-prefix api/ --path services/api` |
 | `token` | `github.token` | Token used to publish the release |
 
-The step exposes every [output](#outputs-and-exit-codes). `@v0` follows the newest `0.x` release; pin `@v0.3.0` or a commit SHA for a fixed version. The action builds shiptag from source on Linux runners, which adds about a minute; for a faster step, run the image directly with `uses: docker://ghcr.io/faridlamaul/shiptag:<version>`, `with: { args: tag }`, and `GITHUB_TOKEN` in `env`.
+The step exposes every [output](#outputs-and-exit-codes). `@v0` follows the newest `0.x` release; pin `@v0.3.0` or a commit SHA for a fixed version. The action builds shiptag from source on Linux runners, which adds about 30 seconds; for a faster step, run the image directly with `uses: docker://ghcr.io/faridlamaul/shiptag:<version>`, `with: { args: tag }`, and `GITHUB_TOKEN` in `env`.
 
 ### GitLab CI
 
