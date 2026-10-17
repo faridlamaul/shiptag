@@ -33,11 +33,13 @@ It analyzes Conventional Commits, calculates the next semantic version tag, gene
 ## 🚀 Installation
 
 ### Using `go install`
+
 ```bash
 go install github.com/faridlamaul/shiptag/cmd/shiptag@latest
 ```
 
 ### Build from Source
+
 ```bash
 git clone https://github.com/faridlamaul/shiptag.git
 cd shiptag
@@ -45,7 +47,9 @@ make install
 ```
 
 ### Docker (GHCR)
+
 Pull the pre-built container image from GitHub Container Registry:
+
 ```bash
 docker pull ghcr.io/faridlamaul/shiptag:latest
 
@@ -58,7 +62,9 @@ docker run --rm -e GITHUB_TOKEN=$GITHUB_TOKEN ghcr.io/faridlamaul/shiptag:latest
 ## 📖 CLI Commands
 
 ### 1. `tag` — Automated Semantic Release
+
 Calculates the next version, creates the git tag, and publishes the GitHub Release:
+
 ```bash
 # Auto-detect bump from Conventional Commits
 shiptag tag --repo owner/repo --token $GITHUB_TOKEN
@@ -71,13 +77,17 @@ shiptag tag --repo owner/repo --dry-run
 ```
 
 ### 2. `changelog` — Generate Release Notes
+
 Prints release notes for unreleased commits to stdout:
+
 ```bash
 shiptag changelog --repo owner/repo
 ```
 
 ### 3. `next-version` — Predict Next Version
+
 Outputs only the next semantic version string (useful in shell scripts and CI pipelines):
+
 ```bash
 NEXT_VER=$(shiptag next-version --repo owner/repo)
 echo "Upcoming version: ${NEXT_VER}"
@@ -121,6 +131,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             ghcr.io/faridlamaul/shiptag:latest tag
+```
 
 ---
 
