@@ -2,6 +2,7 @@ package commits
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +61,32 @@ func TestParse(t *testing.T) {
 			tt.check(t, Parse(Raw{SHA: "s", AuthorName: "N", AuthorEmail: "n@x.io", Message: tt.msg}, tt.extract))
 		})
 	}
+}
+
+func TestParseHeaderFromBody(t *testing.T) {
+	// An extractor that promotes the first body line to the header, as the
+	// Bitbucket linker does for "Merged in <branch> (pull request #N)".
+	promote := func(header, body string) (int, string, bool) {
+		if strings.HasPrefix(header, "Merged in ") {
+			return 8, FirstLine(body), true
+		}
+		return 0, header, false
+	}
+	c := Parse(Raw{Message: "Merged in feature/x (pull request #8)\n\nfeat(api)!: add y\n\ncloses #3"}, promote)
+	eq(t, "Type", c.Type, "feat")
+	eq(t, "Scope", c.Scope, "api")
+	eq(t, "Subject", c.Subject, "add y")
+	eq(t, "Breaking", c.Breaking, true)
+	eq(t, "ChangeRequest", c.ChangeRequest, 8)
+	eq(t, "Issues", c.Issues, []int{3})
+
+	// The promoted line is removed from the body, so it is not parsed twice.
+	c = Parse(Raw{Message: "Merged in x (pull request #8)\n\nBREAKING CHANGE: promoted"}, promote)
+	eq(t, "Type", c.Type, "other")
+	eq(t, "Breaking", c.Breaking, false)
+
+	eq(t, "FirstLine", FirstLine("\n  \n  a b \nc"), "a b")
+	eq(t, "FirstLine empty", FirstLine("\n\n"), "")
 }
 
 func TestParseAuthor(t *testing.T) {

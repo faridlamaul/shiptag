@@ -10,11 +10,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/faridlamaul/shiptag/internal/commits"
 	"github.com/faridlamaul/shiptag/internal/provider"
 	"github.com/faridlamaul/shiptag/internal/provider/httpx"
 )
 
-var prRe = regexp.MustCompile(`\s*\(pull request #(\d+)\)`)
+var (
+	prRe     = regexp.MustCompile(`\s*\(pull request #(\d+)\)`)
+	squashRe = regexp.MustCompile(`^Merged in .+ \(pull request #(\d+)\)$`)
+)
 
 type linker struct{ web, repo string }
 
@@ -34,7 +38,19 @@ func (l linker) ChangeRequestRef(n int) string { return "#" + strconv.Itoa(n) }
 func (l linker) IssueURL(n int) string         { return l.base() + "/issues/" + strconv.Itoa(n) }
 func (l linker) Mention(name, _ string) string { return name }
 
+// ExtractChangeRequest recognizes "(pull request #N)" in the header or body.
+// For Bitbucket's squash/merge title "Merged in <branch> (pull request #N)"
+// the real (conventional) header is the first non-empty body line, which is
+// returned as the cleaned header; commits.Parse then drops that line from the
+// body.
 func (l linker) ExtractChangeRequest(header, body string) (int, string, bool) {
+	if m := squashRe.FindStringSubmatch(header); m != nil {
+		if n, err := strconv.Atoi(m[1]); err == nil {
+			if first := commits.FirstLine(body); first != "" {
+				return n, first, true
+			}
+		}
+	}
 	if m := prRe.FindStringSubmatchIndex(header); m != nil {
 		if n, err := strconv.Atoi(header[m[2]:m[3]]); err == nil {
 			return n, strings.TrimSpace(header[:m[0]] + header[m[1]:]), true

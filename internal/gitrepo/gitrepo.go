@@ -150,6 +150,55 @@ func (r *Repo) Log(from, to, path string) ([]commits.Raw, error) {
 	return res, nil
 }
 
+// Merge is a first-parent merge commit and the commits it brought in.
+type Merge struct {
+	SHA, Message string
+	Commits      []string // SHAs reachable from the merged parents but not the first parent
+}
+
+// Merges returns the merge commits on the first-parent chain of from..to (or
+// all of to's history when from is empty), oldest first. Each merge lists the
+// commits in M^1..M^2 (all non-first parents for octopus merges).
+//
+// path is accepted for symmetry with Log but not applied: git's history
+// simplification hides merges that are TREESAME to a parent, which would drop
+// exactly the merges that brought path changes in. Callers only use merges to
+// annotate commits already filtered by Log, so unrelated merges are harmless.
+func (r *Repo) Merges(from, to, path string) ([]Merge, error) {
+	_ = path
+	rng := to
+	if from != "" {
+		rng = from + ".." + to
+	}
+	out, err := r.git("log", "--first-parent", "--merges", "--topo-order", "--reverse", "--format=%H%x1f%B%x1e", rng)
+	if err != nil {
+		return nil, err
+	}
+	var res []Merge
+	for _, rec := range strings.Split(out, "\x1e") {
+		rec = strings.TrimLeft(rec, "\n")
+		if strings.TrimSpace(rec) == "" {
+			continue
+		}
+		sha, msg, ok := strings.Cut(rec, "\x1f")
+		if !ok {
+			return nil, fmt.Errorf("unexpected git log record: %q", rec)
+		}
+		list, err := r.git("rev-list", sha+"^@", "^"+sha+"^1")
+		if err != nil {
+			return nil, err
+		}
+		m := Merge{SHA: sha, Message: strings.TrimRight(msg, "\n")}
+		for _, l := range strings.Split(list, "\n") {
+			if l = strings.TrimSpace(l); l != "" {
+				m.Commits = append(m.Commits, l)
+			}
+		}
+		res = append(res, m)
+	}
+	return res, nil
+}
+
 // RemoteURL returns the URL of the named remote, or "" if it does not exist.
 func (r *Repo) RemoteURL(name string) (string, error) {
 	out, err := r.git("remote", "get-url", name)

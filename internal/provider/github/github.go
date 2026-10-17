@@ -16,6 +16,7 @@ import (
 
 var (
 	crRe      = regexp.MustCompile(`\s*\(#(\d+)\)\s*$`)
+	mergeRe   = regexp.MustCompile(`^Merge pull request #(\d+) from `)
 	noreplyRe = regexp.MustCompile(`(?i)^(?:\d+\+)?([A-Za-z0-9-]+)@users\.noreply\.github\.com$`)
 )
 
@@ -37,6 +38,12 @@ func (l linker) ChangeRequestRef(n int) string { return "#" + strconv.Itoa(n) }
 func (l linker) IssueURL(n int) string         { return l.base() + "/issues/" + strconv.Itoa(n) }
 
 func (l linker) ExtractChangeRequest(header, body string) (int, string, bool) {
+	// Merge-commit workflow: "Merge pull request #12 from owner/branch".
+	if m := mergeRe.FindStringSubmatch(header); m != nil {
+		if n, err := strconv.Atoi(m[1]); err == nil {
+			return n, header, true
+		}
+	}
 	m := crRe.FindStringSubmatchIndex(header)
 	if m == nil {
 		return 0, header, false

@@ -43,6 +43,10 @@ func TestLinker(t *testing.T) {
 	if _, _, ok := l.ExtractChangeRequest("Merge", "See merge request other/p!34"); ok {
 		t.Error("foreign repo matched")
 	}
+	n, h, ok = l.ExtractChangeRequest("Merge branch 'x' into 'main'", "feat: x\n\nSee merge request g/s/p!42")
+	if !ok || n != 42 || h != "Merge branch 'x' into 'main'" {
+		t.Errorf("merge %d %q %v", n, h, ok)
+	}
 	if got := l.ChangeRequestRef(42); got != "!42" {
 		t.Errorf("ref %q", got)
 	}

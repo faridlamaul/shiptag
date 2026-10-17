@@ -525,6 +525,82 @@ func TestDraftRerunDetectsExistingDraft(t *testing.T) {
 	}
 }
 
+// planNotes runs tag --dry-run --json and returns the decoded plan.
+func planNotes(t *testing.T, args ...string) Plan {
+	t.Helper()
+	code, out, errOut := runCLI(t, nil, append([]string{"tag", "--dry-run", "--json"}, args...)...)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q", code, errOut)
+	}
+	var p Plan
+	if err := json.Unmarshal([]byte(out), &p); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	return p
+}
+
+func TestGitLabMergeRequestFromMergeCommit(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("chore: init", "a")
+	f.Tag("v1.0.0", false)
+	f.Git("checkout", "-q", "-b", "x")
+	feat := f.Commit("feat: x", "b")
+	f.Git("checkout", "-q", "main")
+	f.Merge("x", "Merge branch 'x' into 'main'\n\nfeat: x\n\nSee merge request g/p!42")
+
+	p := planNotes(t, "--provider", "gitlab", "--repo", "g/p", "--dir", f.Dir)
+	want := "- x ([!42](https://gitlab.com/g/p/-/merge_requests/42)) ([" + feat[:7] + "]"
+	if p.NextTag != "v1.1.0" || p.Commits.Counted != 1 || !strings.Contains(p.Notes, want) {
+		t.Errorf("next %s, counted %d, notes:\n%s\nwant line %q", p.NextTag, p.Commits.Counted, p.Notes, want)
+	}
+	if strings.Contains(p.Notes, "Merge branch") {
+		t.Errorf("merge commit rendered:\n%s", p.Notes)
+	}
+}
+
+func TestGitHubPullRequestFromMergeCommit(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("chore: init", "a")
+	f.Tag("v1.0.0", false)
+	f.Git("checkout", "-q", "-b", "branch")
+	fix := f.Commit("fix: y", "b")
+	own := f.Commit("fix: z (#99)", "c")
+	f.Git("checkout", "-q", "main")
+	f.Merge("branch", "Merge pull request #12 from o/branch\n\nfix things")
+
+	p := planNotes(t, "--provider", "github", "--repo", "o/r", "--dir", f.Dir)
+	for _, want := range []string{
+		"- y ([#12](https://github.com/o/r/pull/12)) ([" + fix[:7] + "]",
+		"- z ([#99](https://github.com/o/r/pull/99)) ([" + own[:7] + "]",
+	} {
+		if !strings.Contains(p.Notes, want) {
+			t.Errorf("notes missing %q:\n%s", want, p.Notes)
+		}
+	}
+	if p.NextTag != "v1.0.1" || p.Commits.Counted != 2 {
+		t.Errorf("next %s, counted %d", p.NextTag, p.Commits.Counted)
+	}
+}
+
+func TestBitbucketSquashMerge(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("chore: init", "a")
+	f.Tag("v1.0.0", false)
+	sq := f.Commit("Merged in feature/x (pull request #8)\n\nfeat: add y\n\nApproved-by: Bob", "b")
+
+	p := planNotes(t, "--provider", "bitbucket", "--repo", "ws/r", "--dir", f.Dir)
+	if p.NextTag != "v1.1.0" || p.Bump != "minor" || p.Commits.Counted != 1 {
+		t.Errorf("next %s, bump %s, counted %d", p.NextTag, p.Bump, p.Commits.Counted)
+	}
+	if len(p.Reasons) != 1 || p.Reasons[0].Type != "feat" || p.Reasons[0].Subject != "add y" {
+		t.Errorf("reasons = %+v", p.Reasons)
+	}
+	want := "- add y ([#8](https://bitbucket.org/ws/r/pull-requests/8)) ([" + sq[:7] + "]"
+	if !strings.Contains(p.Notes, "### Features") || !strings.Contains(p.Notes, want) {
+		t.Errorf("notes missing %q:\n%s", want, p.Notes)
+	}
+}
+
 func TestBadRefAndEmptyRepository(t *testing.T) {
 	f := gitfixture.New(t)
 	base := []string{"next-version", "--provider", "github", "--repo", "o/r", "--dir", f.Dir}

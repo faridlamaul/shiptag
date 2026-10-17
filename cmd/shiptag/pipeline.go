@@ -238,10 +238,41 @@ func readCommits(repo *gitrepo.Repo, base *ver.Tag, sha, path string, extract co
 		return nil, err
 	}
 	cs := make([]commits.Commit, len(raws))
+	index := make(map[string]int, len(raws))
 	for i, r := range raws {
 		cs[i] = commits.Parse(r, extract)
+		index[r.SHA] = i
+	}
+	if err := attributeMerges(repo, from, sha, path, cs, index, extract); err != nil {
+		return nil, err
 	}
 	return cs, nil
+}
+
+// attributeMerges gives commits brought in by a first-parent merge the merge's
+// change request (for example GitLab's "See merge request g/p!N" or GitHub's
+// "Merge pull request #N from ...") when they carry none of their own. Merge
+// commits themselves stay out of the notes and the bump.
+func attributeMerges(repo *gitrepo.Repo, from, sha, path string, cs []commits.Commit, index map[string]int, extract commits.CRExtractor) error {
+	if len(cs) == 0 {
+		return nil
+	}
+	merges, err := repo.Merges(from, sha, path)
+	if err != nil {
+		return err
+	}
+	for _, m := range merges {
+		n := commits.Parse(commits.Raw{SHA: m.SHA, Message: m.Message}, extract).ChangeRequest
+		if n == 0 {
+			continue
+		}
+		for _, s := range m.Commits {
+			if i, ok := index[s]; ok && cs[i].ChangeRequest == 0 {
+				cs[i].ChangeRequest = n
+			}
+		}
+	}
+	return nil
 }
 
 func releaseRules(m map[string]string) (ver.Rules, error) {

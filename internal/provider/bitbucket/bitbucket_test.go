@@ -43,6 +43,10 @@ func TestLinker(t *testing.T) {
 	if _, _, ok := l.ExtractChangeRequest("plain", "none"); ok {
 		t.Error("unexpected match")
 	}
+	n, h, ok = l.ExtractChangeRequest("Merged in feature/x (pull request #8)", "\nfeat: add y\n\nApproved-by: Bob")
+	if !ok || n != 8 || h != "feat: add y" {
+		t.Errorf("squash %d %q %v", n, h, ok)
+	}
 	if got := l.ChangeRequestRef(8); got != "#8" {
 		t.Errorf("ref %q", got)
 	}

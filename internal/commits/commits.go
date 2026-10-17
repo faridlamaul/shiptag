@@ -25,8 +25,31 @@ type Commit struct {
 	CoAuthors                 []Person
 }
 
-// CRExtractor finds a change-request number and returns the header with the reference removed.
+// CRExtractor finds a change-request number and returns the header with the
+// reference removed. An extractor may instead return the first non-empty body
+// line (see FirstLine) as the cleaned header, for messages whose title is a
+// generated "merged pull request" line and whose real header is in the body
+// (Bitbucket squash merges); Parse then removes that line from the body.
 type CRExtractor func(header, body string) (n int, cleanedHeader string, ok bool)
+
+// FirstLine returns the first non-empty line of body, trimmed.
+func FirstLine(body string) string {
+	first, _ := splitFirstLine(body)
+	return first
+}
+
+// splitFirstLine returns the first non-empty line of body (trimmed) and the
+// text after it.
+func splitFirstLine(body string) (first, rest string) {
+	for body != "" {
+		line, after, _ := strings.Cut(body, "\n")
+		if t := strings.TrimSpace(line); t != "" {
+			return t, after
+		}
+		body = after
+	}
+	return "", ""
+}
 
 var (
 	headerRe   = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9-]*)(?:\(([^)]*)\))?(!)?:\s+(.+)$`)
@@ -51,7 +74,11 @@ func Parse(r Raw, extract CRExtractor) Commit {
 	if extract != nil {
 		if n, cleaned, ok := extract(header, body); ok {
 			c.ChangeRequest = n
-			header = strings.TrimSpace(cleaned)
+			cleaned = strings.TrimSpace(cleaned)
+			if first, rest := splitFirstLine(body); cleaned != header && first != "" && cleaned == first {
+				body = rest // the header was taken from the body
+			}
+			header = cleaned
 		}
 	}
 

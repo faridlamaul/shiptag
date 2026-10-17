@@ -102,3 +102,11 @@ func (r *Repo) Tag(name string, annotated bool) {
 	}
 	r.Git("-c", "tag.gpgsign=false", "tag", name)
 }
+
+// Merge merges branch into the current branch with a merge commit (--no-ff)
+// and the given message, and returns the merge commit's SHA.
+func (r *Repo) Merge(branch, msg string) string {
+	r.T.Helper()
+	r.Git("-c", "commit.gpgsign=false", "merge", "-q", "--no-ff", "-m", msg, branch)
+	return r.Git("rev-parse", "HEAD")
+}

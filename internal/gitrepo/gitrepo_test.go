@@ -47,6 +47,44 @@ func TestResolveSHAEmptyRepository(t *testing.T) {
 	}
 }
 
+func TestMerges(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("chore: init", "a")
+	f.Tag("v1.0.0", false)
+	f.Git("checkout", "-q", "-b", "feature")
+	s1 := f.Commit("feat: one", "b")
+	s2 := f.Commit("fix: two", "c")
+	f.Git("checkout", "-q", "main")
+	direct := f.Commit("docs: direct", "d")
+	m := f.Merge("feature", "Merge branch 'feature' into 'main'\n\nSee merge request g/p!42")
+	r := open(t, f)
+
+	got, err := r.Merges("v1.0.0", "HEAD", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("merges = %+v", got)
+	}
+	if got[0].SHA != m || got[0].Message != "Merge branch 'feature' into 'main'\n\nSee merge request g/p!42" {
+		t.Errorf("merge = %+v", got[0])
+	}
+	cs := append([]string(nil), got[0].Commits...)
+	sort.Strings(cs)
+	want := []string{s1, s2}
+	sort.Strings(want)
+	if !reflect.DeepEqual(cs, want) {
+		t.Errorf("commits = %v, want %v (direct %s excluded)", cs, want, direct)
+	}
+
+	if got, err := r.Merges("HEAD", "HEAD", ""); err != nil || len(got) != 0 {
+		t.Errorf("empty range = %+v, %v", got, err)
+	}
+	if got, err := r.Merges("", "HEAD", ""); err != nil || len(got) != 1 {
+		t.Errorf("full history = %+v, %v", got, err)
+	}
+}
+
 func TestTagsMergedInto(t *testing.T) {
 	f := gitfixture.New(t)
 	f.Commit("feat: a", "a")
