@@ -29,7 +29,7 @@ func (v Values) Lines() []string {
 	lines := make([]string, 0, len(pairs)+1)
 	lines = append(lines, fmt.Sprintf("released=%t", v.Released))
 	for _, p := range pairs {
-		lines = append(lines, p[0]+"="+strings.ReplaceAll(p[1], "\n", " "))
+		lines = append(lines, p[0]+"="+sanitize(p[1]))
 	}
 	return lines
 }
@@ -72,21 +72,39 @@ func Write(dest string, v Values, stdout io.Writer) error {
 	return f.Close()
 }
 
+func sanitize(s string) string {
+	return strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
+}
+
 // PrependChangelog inserts notes at the top of the changelog (below a leading
-// "# " heading, if any), creating the file when missing.
+// "# " heading, if any), creating the file when missing. Existing file mode and
+// CRLF line endings are preserved.
 func PrependChangelog(path, notes string) error {
+	mode := fs.FileMode(0o644)
+	crlf := false
+	existing, err := os.ReadFile(path)
+	missing := errors.Is(err, fs.ErrNotExist)
+	if err != nil && !missing {
+		return err
+	}
+	if !missing {
+		if st, serr := os.Stat(path); serr == nil {
+			mode = st.Mode().Perm()
+		}
+		crlf = strings.Contains(string(existing), "\r\n")
+	}
+	notes = strings.ReplaceAll(notes, "\r\n", "\n")
 	if !strings.HasSuffix(notes, "\n") {
 		notes += "\n"
 	}
-	existing, err := os.ReadFile(path)
 	var out string
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
+	if missing {
 		out = "# Changelog\n\n" + notes
-	case err != nil:
-		return err
-	default:
+	} else {
 		content := string(existing)
+		if crlf {
+			content = strings.ReplaceAll(content, "\r\n", "\n")
+		}
 		first, rest, _ := strings.Cut(content, "\n")
 		rest = strings.TrimLeft(rest, "\n")
 		switch {
@@ -101,9 +119,21 @@ func PrependChangelog(path, notes string) error {
 			out = notes + "\n" + strings.TrimLeft(content, "\n")
 		}
 	}
+	if crlf {
+		out = strings.ReplaceAll(out, "\n", "\r\n")
+	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte(out), mode); err != nil {
+		os.Remove(tmp)
 		return err
 	}
-	return os.Rename(tmp, path)
+	if err := os.Chmod(tmp, mode); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }

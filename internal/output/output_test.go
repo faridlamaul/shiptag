@@ -47,8 +47,8 @@ func TestLines(t *testing.T) {
 	if got := v.Lines(); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v", got)
 	}
-	got := Values{Version: "a\nb"}.Lines()
-	want = []string{"released=false", "version=a b", "previous_version=", "tag=", "sha=", "bump=", "url="}
+	got := Values{Version: "a\r\nb"}.Lines()
+	want = []string{"released=false", "version=a  b", "previous_version=", "tag=", "sha=", "bump=", "url="}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v", got)
 	}
@@ -88,6 +88,7 @@ func TestPrependChangelog(t *testing.T) {
 		{"missing no trailing newline", nil, "## v2", "# Changelog\n\n## v2\n"},
 		{"heading", ptr("# Changelog\n\n## v1\n"), "## v2\n", "# Changelog\n\n## v2\n\n## v1\n"},
 		{"heading only", ptr("# Changelog\n"), "## v2\n", "# Changelog\n\n## v2\n"},
+		{"crlf", ptr("# Changelog\r\n\r\n## v1\r\n"), "## v2\n- x\n", "# Changelog\r\n\r\n## v2\r\n- x\r\n\r\n## v1\r\n"},
 		{"no heading", ptr("## v1\n"), "## v2\n", "## v2\n\n## v1\n"},
 	}
 	for _, tt := range tests {
@@ -113,3 +114,30 @@ func TestPrependChangelog(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+func TestPrependChangelogPreservesMode(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "CHANGELOG.md")
+	if err := os.WriteFile(p, []byte("# Changelog\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := PrependChangelog(p, "## v2\n"); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := os.Stat(p)
+	if st.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v", st.Mode().Perm())
+	}
+}
+
+func TestPrependChangelogCleansTmpOnFailure(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "CHANGELOG.md")
+	if err := os.Mkdir(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := PrependChangelog(p, "## v2\n"); err == nil {
+		t.Fatal("expected error")
+	}
+	if _, err := os.Stat(p + ".tmp"); err == nil {
+		t.Error("tmp file left behind")
+	}
+}
