@@ -257,7 +257,7 @@ shiptag exits `0` when it released, when there is nothing to release, or when th
 
 ## Contributing
 
-Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). The PR title must be a Conventional Commit, because it becomes the commit that shiptag releases from. To report a vulnerability, follow [SECURITY.md](SECURITY.md).
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). The PR title must be a Conventional Commit, because it becomes the commit that shiptag releases from. Questions go to [Discussions](https://github.com/faridlamaul/shiptag/discussions); to report a vulnerability, follow [SECURITY.md](SECURITY.md).
 
 ## License
 
