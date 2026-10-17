@@ -94,7 +94,7 @@ func (r *Repo) Log(from, to, path string) ([]commits.Raw, error) {
 	if from != "" {
 		rng = from + ".." + to
 	}
-	args := []string{"log", "--no-merges", "--reverse", "--format=%H%x1f%an%x1f%ae%x1f%B%x1e", rng}
+	args := []string{"log", "--no-merges", "--topo-order", "--reverse", "--format=%H%x1f%an%x1f%ae%x1f%B%x1e", rng}
 	if path != "" {
 		args = append(args, "--", path)
 	}

@@ -71,7 +71,7 @@ func TestLogRangeAndPath(t *testing.T) {
 	f.Tag("v1", false)
 	B := f.Commit("fix: b", "web/y")
 	f.Git("checkout", "-q", "-b", "side")
-	f.Commit("fix: side", "side/s")
+	S := f.Commit("fix: side", "side/s")
 	f.Git("checkout", "-q", "main")
 	C := f.Commit("feat: c", "api/z")
 	f.Git("-c", "commit.gpgsign=false", "merge", "--no-ff", "-q", "-m", "Merge side", "side")
@@ -84,14 +84,13 @@ func TestLogRangeAndPath(t *testing.T) {
 	var shas []string
 	for _, c := range got {
 		shas = append(shas, c.SHA)
-	}
-	if len(got) != 3 || shas[0] != B || (shas[1] != C && shas[2] != C) {
-		t.Fatalf("range = %v (B=%s C=%s)", shas, B, C)
-	}
-	for _, c := range got {
 		if c.Message == "Merge side" {
 			t.Fatal("merge commit included")
 		}
+	}
+	// topo-order reversed: B, then main-line C (first parent), then the side commit.
+	if want := []string{B, C, S}; !reflect.DeepEqual(shas, want) {
+		t.Fatalf("range = %v, want %v", shas, want)
 	}
 
 	got, err = r.Log("", "HEAD", "api")
