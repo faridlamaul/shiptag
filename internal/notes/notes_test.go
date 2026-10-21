@@ -188,3 +188,26 @@ func TestChangeRequestRefFromLinker(t *testing.T) {
 		t.Errorf("notes:\n%s", md)
 	}
 }
+
+func TestRenderEscapesContributors(t *testing.T) {
+	cs := []commits.Commit{{
+		SHA: "aaaaaaa1", Type: "feat", Subject: "x",
+		Author: p("[click](https://phish.example)", "evil@x"),
+		CoAuthors: []commits.Person{
+			p("<img src=x>", "img@x"),
+			p("@evil [x](y)", "at@x"),
+			p("Bob", "bob@noreply"),
+		},
+	}}
+	got, _, _ := Render(cs, opts())
+	for _, w := range []string{`\[click\](https://phish.example)`, `&lt;img src=x&gt;`, `@evil \[x\](y)`, `@bob`} {
+		if !strings.Contains(got, w) {
+			t.Errorf("missing %q in %s", w, got)
+		}
+	}
+	for _, bad := range []string{"[click](", "<img", "[x](y)", `\@bob`} {
+		if strings.Contains(got, bad) {
+			t.Errorf("unescaped %q in %s", bad, got)
+		}
+	}
+}

@@ -15,12 +15,14 @@ import (
 )
 
 const (
-	maxBody       = 512
+	maxBody       = 512      // bytes of an error body kept in StatusError
+	maxResponse   = 10 << 20 // bytes read from any response
 	maxRetryAfter = 30 * time.Second
 	defaultRetry  = time.Second
 )
 
-// Client is a small JSON-over-HTTP client with a single retry on 429/5xx.
+// Client is a small JSON-over-HTTP client with a single retry on 429 (any
+// method) or 5xx (idempotent methods only).
 type Client struct {
 	BaseURL string
 	Header  http.Header
@@ -93,8 +95,11 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 			// url.Error embeds the full URL (may carry a query); report only the cause.
 			return fmt.Errorf("%s %s: request failed: %s", method, safePath, rootMessage(err))
 		}
-		data, readErr := io.ReadAll(resp.Body)
+		data, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
 		_ = resp.Body.Close()
+		if len(data) > maxResponse {
+			return fmt.Errorf("%s %s: HTTP %d: response body too large (over %d bytes)", method, safePath, resp.StatusCode, maxResponse)
+		}
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			if readErr != nil {
 				return fmt.Errorf("%s %s: read response: %s", method, safePath, rootMessage(readErr))
@@ -107,7 +112,9 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 			}
 			return nil
 		}
-		if attempt == 0 && (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500) {
+		// 429 means the request was not processed, so any method may retry; a 5xx
+		// POST/PATCH may have succeeded server-side, so only idempotent ones retry.
+		if attempt == 0 && (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 && idempotent(method)) {
 			d := retryDelay(resp.Header.Get("Retry-After"))
 			if c.Sleep != nil {
 				c.Sleep(d)
@@ -128,6 +135,14 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 		}
 		return &StatusError{Method: method, Path: safePath, Status: resp.StatusCode, Body: string(data)}
 	}
+}
+
+func idempotent(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete, http.MethodOptions:
+		return true
+	}
+	return false
 }
 
 func stripQuery(p string) string {

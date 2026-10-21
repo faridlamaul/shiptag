@@ -173,14 +173,14 @@ func TestDoCancelDuringRetryWait(t *testing.T) {
 	}
 }
 
-func TestDoResendsBodyOnRetry(t *testing.T) {
+func TestDoPostRetriesOn429ResendingBody(t *testing.T) {
 	var bodies []map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var m map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&m)
 		bodies = append(bodies, m)
 		if len(bodies) == 1 {
-			w.WriteHeader(503)
+			w.WriteHeader(429)
 		}
 	}))
 	defer srv.Close()
@@ -201,5 +201,52 @@ func TestDoTransportFailureRedacts(t *testing.T) {
 	err := (&Client{BaseURL: base}).Do(context.Background(), "GET", "/x?token=abc", nil, nil)
 	if err == nil || strings.Contains(err.Error(), "abc") || !strings.Contains(err.Error(), "GET") || !strings.Contains(err.Error(), "/x") {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestDoRetryByMethod(t *testing.T) {
+	tests := []struct {
+		method string
+		status int
+		want   int32 // requests sent
+	}{
+		{"POST", 502, 1}, // may have been processed: never replay
+		{"POST", 503, 1},
+		{"PATCH", 500, 1},
+		{"POST", 429, 2}, // 429 means not processed
+		{"GET", 503, 2},
+		{"HEAD", 502, 2},
+		{"PUT", 500, 2},
+		{"DELETE", 503, 2},
+		{"OPTIONS", 503, 2},
+	}
+	for _, tc := range tests {
+		var n int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&n, 1)
+			w.WriteHeader(tc.status)
+		}))
+		c := &Client{BaseURL: srv.URL, Sleep: func(time.Duration) {}}
+		err := c.Do(context.Background(), tc.method, "/", nil, nil)
+		srv.Close()
+		var se *StatusError
+		if !errors.As(err, &se) || se.Status != tc.status || n != tc.want {
+			t.Errorf("%s %d: err=%v n=%d want n=%d", tc.method, tc.status, err, n, tc.want)
+		}
+	}
+}
+
+func TestDoOversizedBody(t *testing.T) {
+	for _, status := range []int{200, 500} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+			_, _ = io.WriteString(w, `"`+strings.Repeat("z", maxResponse)+`"`)
+		}))
+		var out string
+		err := (&Client{BaseURL: srv.URL}).Do(context.Background(), "POST", "/x?token=abc", nil, &out)
+		srv.Close()
+		if err == nil || !strings.Contains(err.Error(), "too large") || strings.Contains(err.Error(), "abc") || strings.Contains(err.Error(), "zzz") {
+			t.Fatalf("status %d: err=%.120v", status, err)
+		}
 	}
 }

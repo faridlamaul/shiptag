@@ -20,7 +20,7 @@ shiptag reads Conventional Commits from your git history, calculates the next se
 | Permission | `contents: write` | Developer role (`api` scope for personal or project tokens) | Repository access token with `repository:write` |
 | PR/MR links from | `(#N)`, `Merge pull request #N` | `(!N)`, `See merge request …!N` | `(pull request #N)` |
 
-`--token` overrides the environment on every platform.
+`--token` overrides the environment on every platform. For a self-hosted GitHub or GitLab detected only from the `origin` remote, shiptag does not send the token from the environment until you confirm the host with `--base-url` (or `--api-url`), so a token is never sent to an unexpected server. In CI, the server URL comes from the platform's own variables and needs no flag.
 
 ## Installation
 
@@ -29,7 +29,7 @@ docker pull ghcr.io/faridlamaul/shiptag:latest                 # Docker
 go install github.com/faridlamaul/shiptag/cmd/shiptag@latest  # Go 1.26+
 ```
 
-Prebuilt binaries for Linux, macOS, and Windows (amd64 and arm64) are attached to every [GitHub Release](https://github.com/faridlamaul/shiptag/releases) together with `checksums.txt`. To build from source, run `make build`.
+Prebuilt binaries for Linux, macOS, and Windows (amd64 and arm64) are attached to every [GitHub Release](https://github.com/faridlamaul/shiptag/releases) together with `checksums.txt`, and carry a build provenance attestation: `gh attestation verify <archive> --repo faridlamaul/shiptag`. To build from source, run `make build`.
 
 Image tags follow the release: `X.Y.Z`, `X.Y`, `X`, and `latest` (the newest stable release). Each image is built for `linux/amd64` and `linux/arm64` with provenance and an SBOM.
 
@@ -84,7 +84,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -178,13 +178,13 @@ Run `shiptag <command> --help` for defaults. Flags override `.shiptag.yaml`, whi
 | `fix`, `perf`, `revert` | patch |
 | anything else | none: nothing to release |
 
-- **First release:** `initial_version` (default `0.1.0`).
+- **First release:** `initial_version` (default `0.1.0`). Without a previous version tag, any commit is enough, even one that bumps nothing (such as `chore:`); use `--bump` or `--version` to pick another first version.
 - **0.x:** while the version is `0.y.z`, a breaking change bumps minor. Graduate with `--bump major` or `--version 1.0.0`.
 - **Prereleases:** `--prerelease rc` gives `v1.3.0-rc.1`, `-rc.2`, …; the stable `v1.3.0` later covers every commit since the last stable tag.
 - **Monorepos:** `--tag-prefix api/ --path services/api` gives each package its own tags and history.
 - **Re-runs:** an already tagged commit prints `nothing to release` (or `already released` when the tag exists only on the platform) and exits 0. A tag pointing to a different commit is an error.
 
-Only tags reachable from the released commit count. Merge commits are left out of the notes, but their PR/MR number is linked to the commits they merged.
+Commit types are case-insensitive, also in `release_rules` and `sections`. `path` and `changelog_file` in the configuration, and `--path`, are relative to the repository root. Only tags reachable from the released commit count. Merge commits are left out of the notes, but their PR/MR number is linked to the commits they merged.
 
 ## Release notes
 
@@ -251,7 +251,7 @@ Unknown keys and invalid values are reported with the key name.
 | `sha`, `url` | Released commit and release URL |
 | `bump` | `major`, `minor`, `patch`, `initial`, or `explicit` |
 
-Outputs go to `$GITHUB_OUTPUT` on GitHub, `shiptag.env` on GitLab and Bitbucket, and stdout elsewhere (`--output-file` overrides this).
+Outputs go to `$GITHUB_OUTPUT` on GitHub, `shiptag.env` in the repository root on GitLab and Bitbucket, and stdout elsewhere (`--output-file` overrides this).
 
 shiptag exits `0` when it released, when there is nothing to release, or when the release already exists, and `1` on any error (for example a shallow clone or a missing token).
 

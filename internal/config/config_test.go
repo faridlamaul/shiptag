@@ -125,6 +125,8 @@ func TestValidate(t *testing.T) {
 		{"section", "title", func(c *Config) { c.Sections[0].Title = "" }},
 		{"prefix", "tag_prefix", func(c *Config) { c.TagPrefix = "a b" }},
 		{"contributors", "contributors_title", func(c *Config) { c.ContributorsTitle = " " }},
+		{"breaking", "breaking_title: must not be empty", func(c *Config) { c.BreakingTitle = " " }},
+		{"other", "other_section.title: must not be empty", func(c *Config) { c.OtherSection.Title = "" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,5 +155,46 @@ func TestLoadAcceptsNoneRule(t *testing.T) {
 	}
 	if c.ReleaseRules["revert"] != "none" {
 		t.Errorf("revert = %q", c.ReleaseRules["revert"])
+	}
+}
+
+func TestLoadNormalizesTypeCase(t *testing.T) {
+	p, dir := write(t, "release_rules: {' Feat ': major, DOCS: patch}\nsections:\n  - {title: Feat, types: [' FEAT', Fix]}\nother_section: {title: Other, types: [Misc]}\n")
+	c, err := Load(p, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ReleaseRules["feat"] != "major" || c.ReleaseRules["docs"] != "patch" {
+		t.Errorf("rules = %v", c.ReleaseRules)
+	}
+	for k := range c.ReleaseRules {
+		if k != strings.ToLower(strings.TrimSpace(k)) {
+			t.Errorf("rule key %q not normalized", k)
+		}
+	}
+	if !reflect.DeepEqual(c.Sections[0].Types, []string{"feat", "fix"}) {
+		t.Errorf("section types = %q", c.Sections[0].Types)
+	}
+	if !reflect.DeepEqual(c.OtherSection.Types, []string{"misc"}) {
+		t.Errorf("other types = %q", c.OtherSection.Types)
+	}
+}
+
+func TestLoadRejectsCollidingRuleKeys(t *testing.T) {
+	p, dir := write(t, "release_rules: {Feat: major, feat: patch}\n")
+	_, err := Load(p, dir)
+	if err == nil || !strings.Contains(err.Error(), `"Feat"`) || !strings.Contains(err.Error(), `"feat"`) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestLoadAllowsCollidingRuleKeysWithSameValue(t *testing.T) {
+	p, dir := write(t, "release_rules: {Feat: major, feat: major}\n")
+	c, err := Load(p, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ReleaseRules["feat"] != "major" {
+		t.Errorf("rules = %v", c.ReleaseRules)
 	}
 }

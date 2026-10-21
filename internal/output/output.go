@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -37,8 +38,10 @@ func (v Values) Lines() []string {
 	return lines
 }
 
-// Destination returns the file to append outputs to, or "" for stdout.
-func Destination(providerName string, inCI bool, override string, getenv func(string) string) string {
+// Destination returns the file to append outputs to, or "" for stdout. The
+// GitLab and Bitbucket dotenv file is placed in dir, the repository root, where
+// CI artifact paths are resolved.
+func Destination(providerName string, inCI bool, override, dir string, getenv func(string) string) string {
 	if override != "" {
 		return override
 	}
@@ -49,7 +52,7 @@ func Destination(providerName string, inCI bool, override string, getenv func(st
 	case "github":
 		return getenv("GITHUB_OUTPUT")
 	case "gitlab", "bitbucket":
-		return "shiptag.env"
+		return filepath.Join(dir, "shiptag.env")
 	}
 	return ""
 }

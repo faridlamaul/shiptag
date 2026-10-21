@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -95,15 +96,39 @@ func Load(path, topLevel string) (Config, error) {
 	if err := dec.Decode(&cfg); err != nil && !errors.Is(err, io.EOF) {
 		return Config{}, fmt.Errorf("parse %s: %w", path, err)
 	}
-	for k, v := range cfg.ReleaseRules {
-		defaults[k] = v
+	keys := make([]string, 0, len(cfg.ReleaseRules))
+	for k := range cfg.ReleaseRules {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	orig := map[string]string{} // normalized key -> key as written
+	for _, k := range keys {
+		n := normalizeType(k)
+		if prev, ok := orig[n]; ok && cfg.ReleaseRules[prev] != cfg.ReleaseRules[k] {
+			return Config{}, fmt.Errorf("invalid %s: release_rules: %q and %q conflict (types are case-insensitive)", path, prev, k)
+		}
+		orig[n] = k
+		defaults[n] = cfg.ReleaseRules[k]
 	}
 	cfg.ReleaseRules = defaults
+	for i := range cfg.Sections {
+		normalizeTypes(cfg.Sections[i].Types)
+	}
+	normalizeTypes(cfg.OtherSection.Types)
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, fmt.Errorf("invalid %s: %w", path, err)
 	}
 	return cfg, nil
+}
+
+// normalizeType matches the parser, which lowercases commit types.
+func normalizeType(t string) string { return strings.ToLower(strings.TrimSpace(t)) }
+
+func normalizeTypes(ts []string) {
+	for i, t := range ts {
+		ts[i] = normalizeType(t)
+	}
 }
 
 // Validate checks the configuration for invalid values.
@@ -122,6 +147,12 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(s.Title) == "" {
 			return fmt.Errorf("sections[%d]: title must not be empty", i)
 		}
+	}
+	if strings.TrimSpace(c.BreakingTitle) == "" {
+		return errors.New("breaking_title: must not be empty")
+	}
+	if strings.TrimSpace(c.OtherSection.Title) == "" {
+		return errors.New("other_section.title: must not be empty")
 	}
 	if strings.TrimSpace(c.ContributorsTitle) == "" {
 		return errors.New("contributors_title: must not be empty")
