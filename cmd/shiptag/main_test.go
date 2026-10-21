@@ -146,15 +146,45 @@ func TestTagDryRunGitLabEnv(t *testing.T) {
 		"Provider:     gitlab (g/p)",
 		"Ref:          " + sha + " → " + sha[:8] + "…",
 		"would create release v1.1.0 at " + sha[:7] + " (tag created by release)",
-		"would write outputs to shiptag.env",
+		"would write outputs to " + filepath.Join(f.Git("rev-parse", "--show-toplevel"), "shiptag.env"),
 		"https://gl.x/g/p/-/merge_requests/7",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("stdout missing %q\n%s", want, out)
 		}
 	}
-	if _, err := os.Stat("shiptag.env"); err == nil {
+	if _, err := os.Stat(filepath.Join(f.Dir, "shiptag.env")); err == nil {
 		t.Errorf("dry-run wrote shiptag.env")
+	}
+}
+
+// Files named in .shiptag.yaml and the CI dotenv file live in the repository
+// root, whatever the working directory or --dir.
+func TestRepoRootRelativePaths(t *testing.T) {
+	f := gitfixture.New(t)
+	f.Commit("chore: init", ".shiptag.yaml", "sub/a")
+	if err := os.WriteFile(filepath.Join(f.Dir, ".shiptag.yaml"), []byte("changelog_file: CHANGELOG.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.Git("add", ".shiptag.yaml")
+	f.Commit("chore: config")
+	f.Tag("v1.0.0", false)
+	f.Commit("feat: y", "sub/b")
+	top := f.Git("rev-parse", "--show-toplevel")
+	t.Chdir(t.TempDir())
+
+	env := map[string]string{"GITLAB_CI": "true", "CI_PROJECT_PATH": "g/p"}
+	code, out, errOut := runCLI(t, env, "tag", "--dry-run", "--dir", filepath.Join(f.Dir, "sub"))
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errOut)
+	}
+	for _, want := range []string{
+		"would write outputs to " + filepath.Join(top, "shiptag.env"),
+		"would prepend " + filepath.Join(top, "CHANGELOG.md"),
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout missing %q\n%s", want, out)
+		}
 	}
 }
 
@@ -522,6 +552,25 @@ func TestDraftRerunDetectsExistingDraft(t *testing.T) {
 	code, _, errOut = runCLI(t, ciEnv(srv2.URL, outFile, "tok"), "tag", "--draft", "--dir", f.Dir)
 	if code != 0 || len(fake2.posts) != 1 || fake2.posts[0]["draft"] != true {
 		t.Fatalf("exit %d, posts %v, stderr %q", code, fake2.posts, errOut)
+	}
+}
+
+// A run without --draft must not publish a second release next to an
+// existing draft, which has no tag yet.
+func TestPublishSkipsExistingDraft(t *testing.T) {
+	f, _, _ := githubRepo(t)
+	fake := &fakeGitHub{drafts: []string{"v1.3.0"}}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	outFile := filepath.Join(t.TempDir(), "github_output")
+	t.Chdir(t.TempDir())
+
+	code, _, errOut := runCLI(t, ciEnv(srv.URL, outFile, "tok"), "tag", "--dir", f.Dir)
+	if code != 0 || !strings.Contains(errOut, "already released") {
+		t.Fatalf("exit %d, stderr %q", code, errOut)
+	}
+	if len(fake.posts) != 0 {
+		t.Errorf("unexpected POST: %v", fake.posts)
 	}
 }
 

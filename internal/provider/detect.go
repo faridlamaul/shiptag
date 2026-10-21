@@ -22,6 +22,8 @@ const (
 	gitlabWeb    = "https://gitlab.com"
 	bitbucketWeb = "https://bitbucket.org"
 	bitbucketAPI = "https://api.bitbucket.org/2.0"
+	githubAPI    = "https://api.github.com"
+	gitlabAPI    = "https://gitlab.com/api/v4"
 )
 
 // Detect resolves provider, repository, URLs, ref, and token.
@@ -75,17 +77,17 @@ func Detect(in DetectInput) (Info, error) {
 		return ""
 	}
 
-	var envRepo, envSHA, envWeb, envAPI, publicWeb string
+	var envRepo, envSHA, envWeb, envAPI, publicWeb, publicAPI string
 	switch name {
 	case "github":
 		envRepo, envSHA, envWeb, envAPI = ienv("GITHUB_REPOSITORY"), ienv("GITHUB_SHA"), ienv("GITHUB_SERVER_URL"), ienv("GITHUB_API_URL")
-		publicWeb = githubWeb
+		publicWeb, publicAPI = githubWeb, githubAPI
 	case "gitlab":
 		envRepo, envSHA, envWeb, envAPI = ienv("CI_PROJECT_PATH"), ienv("CI_COMMIT_SHA"), ienv("CI_SERVER_URL"), ienv("CI_API_V4_URL")
-		publicWeb = gitlabWeb
+		publicWeb, publicAPI = gitlabWeb, gitlabAPI
 	case "bitbucket":
 		envRepo, envSHA = ienv("BITBUCKET_REPO_FULL_NAME"), ienv("BITBUCKET_COMMIT")
-		publicWeb = bitbucketWeb
+		publicWeb, publicAPI = bitbucketWeb, bitbucketAPI
 	}
 
 	repo := firstNonEmpty(in.Repo, envRepo, remotePath)
@@ -112,7 +114,7 @@ func Detect(in DetectInput) (Info, error) {
 		switch name {
 		case "github":
 			if web == githubWeb {
-				api = "https://api.github.com"
+				api = githubAPI
 			} else {
 				api = web + "/api/v3"
 			}
@@ -128,8 +130,12 @@ func Detect(in DetectInput) (Info, error) {
 		ref = envSHA
 	}
 
+	// Env tokens go only to a trusted endpoint: the public API, CI-provided URLs,
+	// or URLs the user passed. A host derived only from the git remote is not
+	// trusted, so a crafted remote cannot collect the user's token.
+	trusted := api == publicAPI || in.BaseURL != "" || in.APIURL != "" || (inCI && (envWeb != "" || envAPI != ""))
 	token, kind := in.Token, ""
-	if token == "" {
+	if token == "" && trusted {
 		switch name {
 		case "github":
 			token = firstNonEmpty(getenv("GITHUB_TOKEN"), getenv("GH_TOKEN"))
@@ -149,11 +155,12 @@ func Detect(in DetectInput) (Info, error) {
 
 // TokenHelp returns the hint shown when no token is available.
 func TokenHelp(name string) string {
+	const selfHosted = " (for a self-hosted host detected from the git remote, the env token is used only after confirming the host with --base-url)"
 	switch name {
 	case "github":
-		return "set GITHUB_TOKEN or GH_TOKEN, or pass --token"
+		return "set GITHUB_TOKEN or GH_TOKEN, or pass --token" + selfHosted
 	case "gitlab":
-		return "set GITLAB_TOKEN (or run in GitLab CI with CI_JOB_TOKEN), or pass --token"
+		return "set GITLAB_TOKEN (or run in GitLab CI with CI_JOB_TOKEN), or pass --token" + selfHosted
 	case "bitbucket":
 		return "set BITBUCKET_TOKEN, or pass --token"
 	}

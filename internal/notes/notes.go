@@ -180,7 +180,12 @@ func contributors(cs []commits.Commit, o Options) []string {
 				return
 			}
 		}
+		// A result differing from the name is a provider "@login" mention,
+		// which is safe; anything else is the raw name and must be escaped.
 		if m := o.Linker.Mention(p.Name, p.Email); m != "" {
+			if m == p.Name {
+				m = escape(m)
+			}
 			out = append(out, m)
 		}
 	}

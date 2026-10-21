@@ -40,6 +40,7 @@ type analysis struct {
 	info   provider.Info
 	linker provider.Linker
 	scheme ver.Scheme
+	top    string // repository root
 	ref    string
 	sha    string
 
@@ -145,6 +146,7 @@ func analyze(cmd *cobra.Command, g *globals, req request, getenv func(string) st
 		info:   info,
 		linker: newLinker(info),
 		scheme: ver.Scheme{Prefix: cfg.TagPrefix, VPrefix: cfg.VPrefix},
+		top:    top,
 		ref:    g.ref,
 	}
 	if a.ref == "" {

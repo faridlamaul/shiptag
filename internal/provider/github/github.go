@@ -133,20 +133,33 @@ func (g *gh) ReleaseExists(ctx context.Context, tag string) (bool, error) {
 	if !httpx.IsNotFound(err) {
 		return false, err
 	}
-	// Draft releases are not served by releases/tags; scan the list.
-	var list []struct {
-		TagName string `json:"tag_name"`
-	}
-	if err := g.c.Do(ctx, "GET", g.o+"/releases?per_page=100", nil, &list); err != nil {
-		return false, err
-	}
-	for _, r := range list {
-		if r.TagName == tag {
-			return true, nil
+	// Draft releases are not served by releases/tags; scan the list, newest first.
+	for page := 1; page <= maxReleasePages; page++ {
+		var list []struct {
+			TagName string `json:"tag_name"`
+		}
+		path := g.o + "/releases?per_page=" + strconv.Itoa(releasesPerPage) + "&page=" + strconv.Itoa(page)
+		if err := g.c.Do(ctx, "GET", path, nil, &list); err != nil {
+			return false, err
+		}
+		for _, r := range list {
+			if r.TagName == tag {
+				return true, nil
+			}
+		}
+		if len(list) < releasesPerPage {
+			break
 		}
 	}
 	return false, nil
 }
+
+// The draft scan reads at most maxReleasePages pages (1000 releases) to bound
+// API calls; a draft older than that is reported as not existing.
+const (
+	releasesPerPage = 100
+	maxReleasePages = 10
+)
 
 func (g *gh) Publish(ctx context.Context, r provider.Release) (string, error) {
 	body := map[string]any{

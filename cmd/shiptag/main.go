@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/faridlamaul/shiptag/internal/output"
@@ -115,8 +116,11 @@ func tagCmd(analyzeFor analyzer, getenv func(string) string, stdout io.Writer, l
 			}
 			if cmd.Flags().Changed("changelog-file") {
 				a.cfg.ChangelogFile = changelogFile
+			} else if f := a.cfg.ChangelogFile; f != "" && !filepath.IsAbs(f) {
+				// changelog_file in .shiptag.yaml is relative to the repository root.
+				a.cfg.ChangelogFile = filepath.Join(a.top, f)
 			}
-			dest := output.Destination(a.info.Name, a.info.InCI, outputFile, getenv)
+			dest := output.Destination(a.info.Name, a.info.InCI, outputFile, a.top, getenv)
 			// With --json the stdout KEY=VALUE fallback is suppressed.
 			writeOutputs := !(asJSON && dest == "")
 			destName := dest
@@ -179,9 +183,9 @@ func tagCmd(analyzeFor analyzer, getenv func(string) string, stdout io.Writer, l
 			if found && remoteSHA != a.sha {
 				return fmt.Errorf("tag %s already points to %s, expected %s", tag, remoteSHA, a.sha)
 			}
-			// A GitHub draft release creates no tag, so a rerun with --draft
-			// must look for the draft itself before publishing another one.
-			if found || draft {
+			// A GitHub draft release creates no tag, so any GitHub run must
+			// look for a draft itself before publishing another release.
+			if found || a.info.Name == "github" {
 				exists, err := prov.ReleaseExists(ctx, tag)
 				if err != nil {
 					return err

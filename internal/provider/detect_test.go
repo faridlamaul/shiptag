@@ -49,6 +49,20 @@ func TestDetect(t *testing.T) {
 			Info{Name: "github", Repo: "o/r", DefaultRef: "HEAD", WebURL: "https://github.com", APIURL: "https://api.github.com"}},
 		{"bitbucket remote", DetectInput{RemoteURL: "https://user@bitbucket.org/ws/r.git", Getenv: env(nil)},
 			Info{Name: "bitbucket", Repo: "ws/r", DefaultRef: "HEAD", WebURL: "https://bitbucket.org", APIURL: "https://api.bitbucket.org/2.0"}},
+		{"untrusted remote host ignores env token", DetectInput{RemoteURL: "git@github.evil.example:o/r.git", Getenv: env(map[string]string{"GITHUB_TOKEN": "t"})},
+			Info{Name: "github", Repo: "o/r", DefaultRef: "HEAD", WebURL: "https://github.evil.example", APIURL: "https://github.evil.example/api/v3"}},
+		{"confirmed remote host uses env token", DetectInput{RemoteURL: "git@github.evil.example:o/r.git", BaseURL: "https://github.evil.example", Getenv: env(map[string]string{"GITHUB_TOKEN": "t"})},
+			Info{Name: "github", Repo: "o/r", DefaultRef: "HEAD", WebURL: "https://github.evil.example", APIURL: "https://github.evil.example/api/v3", Token: "t"}},
+		{"self-hosted gitlab remote ignores env token", DetectInput{RemoteURL: "git@gitlab.example.com:g/p.git", Getenv: env(map[string]string{"GITLAB_TOKEN": "p"})},
+			Info{Name: "gitlab", Repo: "g/p", DefaultRef: "HEAD", WebURL: "https://gitlab.example.com", APIURL: "https://gitlab.example.com/api/v4"}},
+		{"self-hosted gitlab remote token flag", DetectInput{RemoteURL: "git@gitlab.example.com:g/p.git", Token: "flag", Getenv: env(map[string]string{"GITLAB_TOKEN": "p"})},
+			Info{Name: "gitlab", Repo: "g/p", DefaultRef: "HEAD", WebURL: "https://gitlab.example.com", APIURL: "https://gitlab.example.com/api/v4", Token: "flag"}},
+		{"self-hosted gitlab api url flag uses env token", DetectInput{RemoteURL: "git@gitlab.example.com:g/p.git", APIURL: "https://gitlab.example.com/api/v4", Getenv: env(map[string]string{"GITLAB_TOKEN": "p"})},
+			Info{Name: "gitlab", Repo: "g/p", DefaultRef: "HEAD", WebURL: "https://gitlab.example.com", APIURL: "https://gitlab.example.com/api/v4", Token: "p"}},
+		{"public github remote uses env token", DetectInput{RemoteURL: "git@github.com:o/r.git", Getenv: env(map[string]string{"GITHUB_TOKEN": "t"})},
+			Info{Name: "github", Repo: "o/r", DefaultRef: "HEAD", WebURL: "https://github.com", APIURL: "https://api.github.com", Token: "t"}},
+		{"public gitlab remote uses env token", DetectInput{RemoteURL: "https://gitlab.com/g/p.git", Getenv: env(map[string]string{"GITLAB_TOKEN": "p"})},
+			Info{Name: "gitlab", Repo: "g/p", DefaultRef: "HEAD", WebURL: "https://gitlab.com", APIURL: "https://gitlab.com/api/v4", Token: "p"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -88,8 +102,14 @@ func TestDetectErrors(t *testing.T) {
 
 func TestTokenHelp(t *testing.T) {
 	for _, n := range []string{"github", "gitlab", "bitbucket"} {
-		if !strings.Contains(TokenHelp(n), "--token") {
+		if h := TokenHelp(n); !strings.Contains(h, "--token") || strings.Contains(h, "\n") {
 			t.Errorf("%s", n)
+		}
+	}
+	// Self-hostable providers explain why a remote-derived host gets no env token.
+	for _, n := range []string{"github", "gitlab"} {
+		if !strings.Contains(TokenHelp(n), "--base-url") {
+			t.Errorf("%s: no --base-url hint", n)
 		}
 	}
 }

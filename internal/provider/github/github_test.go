@@ -3,8 +3,10 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/faridlamaul/shiptag/internal/provider"
@@ -106,7 +108,7 @@ func TestDraftReleaseExists(t *testing.T) {
 	p := newP(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.EscapedPath() {
 		case "/repos/o/r/releases":
-			listed = r.URL.RawQuery == "per_page=100"
+			listed = r.URL.RawQuery == "per_page=100&page=1"
 			w.Write([]byte(`[{"tag_name":"v1","draft":true}]`))
 		default:
 			http.NotFound(w, r)
@@ -179,5 +181,62 @@ func TestGitHubPrefixedTagPath(t *testing.T) {
 	}
 	if paths[1] != "/repos/o/r/releases/tags/api/v1.0.0" {
 		t.Errorf("release path %q", paths[1])
+	}
+}
+
+// fullPage returns a JSON list of 100 releases named prefix0..prefix99.
+func fullPage(prefix string) string {
+	items := make([]string, 100)
+	for i := range items {
+		items[i] = fmt.Sprintf(`{"tag_name":"%s%d"}`, prefix, i)
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
+func TestDraftReleaseOnSecondPage(t *testing.T) {
+	var pages []string
+	p := newP(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/repos/o/r/releases" {
+			http.NotFound(w, r)
+			return
+		}
+		page := r.URL.Query().Get("page")
+		pages = append(pages, page)
+		switch page {
+		case "1":
+			w.Write([]byte(fullPage("old")))
+		case "2":
+			w.Write([]byte(`[{"tag_name":"v1","draft":true}]`))
+		default:
+			t.Errorf("unexpected page %q", page)
+			w.Write([]byte(`[]`))
+		}
+	})
+	if ok, err := p.ReleaseExists(context.Background(), "v1"); err != nil || !ok {
+		t.Errorf("draft %v %v", ok, err)
+	}
+	if ok, err := p.ReleaseExists(context.Background(), "v9"); err != nil || ok {
+		t.Errorf("missing %v %v", ok, err)
+	}
+	if got := strings.Join(pages, ","); got != "1,2,1,2" {
+		t.Errorf("pages %s", got)
+	}
+}
+
+func TestDraftScanPageCap(t *testing.T) {
+	var n int
+	p := newP(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/repos/o/r/releases" {
+			http.NotFound(w, r)
+			return
+		}
+		n++
+		w.Write([]byte(fullPage("p" + r.URL.Query().Get("page") + "-")))
+	})
+	if ok, err := p.ReleaseExists(context.Background(), "v1"); err != nil || ok {
+		t.Errorf("v1 %v %v", ok, err)
+	}
+	if n != maxReleasePages {
+		t.Errorf("listed %d pages, want %d", n, maxReleasePages)
 	}
 }

@@ -27,15 +27,15 @@ func TestDestination(t *testing.T) {
 	}{
 		{"github ci", "github", true, "", env, "/tmp/o"},
 		{"github ci no env", "github", true, "", empty, ""},
-		{"gitlab ci", "gitlab", true, "", env, "shiptag.env"},
-		{"bitbucket ci", "bitbucket", true, "", env, "shiptag.env"},
+		{"gitlab ci", "gitlab", true, "", env, filepath.Join("/repo", "shiptag.env")},
+		{"bitbucket ci", "bitbucket", true, "", env, filepath.Join("/repo", "shiptag.env")},
 		{"not ci", "github", false, "", env, ""},
 		{"override wins", "github", true, "x.env", env, "x.env"},
 		{"override wins outside ci", "gitlab", false, "x.env", env, "x.env"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Destination(tt.provider, tt.inCI, tt.override, tt.getenv); got != tt.want {
+			if got := Destination(tt.provider, tt.inCI, tt.override, "/repo", tt.getenv); got != tt.want {
 				t.Errorf("got %q want %q", got, tt.want)
 			}
 		})
