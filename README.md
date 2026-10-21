@@ -1,8 +1,26 @@
-# shiptag
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img alt="shiptag" src="docs/assets/logo-light.svg" width="360">
+  </picture>
+</p>
 
-[![Release](https://github.com/faridlamaul/shiptag/actions/workflows/release.yml/badge.svg)](https://github.com/faridlamaul/shiptag/actions/workflows/release.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <strong>Conventional Commits in, semantic version and release notes out.</strong><br>
+  One binary for GitHub, GitLab, and Bitbucket Cloud.
+</p>
+
+<p align="center">
+  <a href="https://github.com/faridlamaul/shiptag/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/faridlamaul/shiptag/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/faridlamaul/shiptag/actions/workflows/release.yml"><img alt="Release" src="https://github.com/faridlamaul/shiptag/actions/workflows/release.yml/badge.svg"></a>
+  <a href="https://github.com/faridlamaul/shiptag/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/faridlamaul/shiptag?sort=semver"></a>
+  <a href="https://golang.org"><img alt="Go Version" src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go"></a>
+  <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+</p>
+
+<p align="center">
+  <img alt="shiptag previewing the next release of a repository" src="docs/assets/demo.gif" width="800">
+</p>
 
 shiptag reads Conventional Commits from your git history, calculates the next semantic version, writes categorized release notes, and publishes the release to **GitHub**, **GitLab**, or **Bitbucket Cloud**. The platform is detected automatically in CI.
 
@@ -10,6 +28,41 @@ shiptag reads Conventional Commits from your git history, calculates the next se
 - **Local analysis:** tags and commits come from the clone, so results are the same everywhere and `--dry-run` needs no token.
 - **Safe to re-run:** a commit that is already released is never released twice.
 - **CI-ready outputs:** `version`, `tag`, `released`, and more for the next steps of your pipeline.
+
+<details>
+<summary><strong>Contents</strong></summary>
+
+- [How it works](#how-it-works)
+- [Platforms](#platforms)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [CI setup](#ci-setup)
+- [Usage](#usage)
+- [How versions are calculated](#how-versions-are-calculated)
+- [Release notes](#release-notes)
+- [Configuration](#configuration)
+- [Outputs and exit codes](#outputs-and-exit-codes)
+- [Contributing](#contributing)
+
+</details>
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["git history<br/>since the last tag"] --> B["Parse<br/>Conventional Commits"]
+    B --> C{"Highest bump"}
+    C -->|"feat!: / BREAKING CHANGE"| M[major]
+    C -->|feat| N[minor]
+    C -->|"fix, perf, revert"| P[patch]
+    C -->|"anything else"| X(["nothing to release"])
+    M & N & P --> V["Next tag<br/>v1.3.0"]
+    V --> R["Release notes<br/>(Markdown)"]
+    R --> G["Publish to<br/>GitHub · GitLab · Bitbucket"]
+    G --> O["CI outputs<br/>version, tag, released, url"]
+```
+
+shiptag works on the local clone, so the same commits always give the same version. The platform API is used only when publishing, so `--dry-run` runs without a token.
 
 ## Platforms
 
@@ -57,6 +110,8 @@ Actions:
 ## v0.1.0 (2026-10-17)
 …
 ```
+
+<img alt="Output of shiptag tag --dry-run" src="docs/assets/dry-run.png" width="720">
 
 With Docker, mount the repository and keep file ownership:
 
@@ -206,6 +261,10 @@ Commit types are case-insensitive, also in `release_rules` and `sections`. `path
 Alice, @bob, Carol
 ```
 
+On GitHub, the same notes render like this ([v0.3.1](https://github.com/faridlamaul/shiptag/releases/tag/v0.3.1), released by shiptag itself):
+
+<img alt="shiptag release notes on a GitHub Release page" src="docs/assets/github-release.png" width="720">
+
 A breaking change keeps its commit subject as the list item, and the text of its `BREAKING CHANGE:` footer appears as a paragraph below it. The notes are plain Markdown, so they render the same on GitHub, GitLab, and Bitbucket.
 
 Visible by default: Features, Bug Fixes, Performance Improvements, Reverts, Code Refactoring, Documentation. Build, CI, chore, style, test, and non-conventional commits are hidden. Bots are left out of the contributors. Every heading can be renamed in the configuration, for example to drop the emoji.
@@ -256,6 +315,8 @@ Outputs go to `$GITHUB_OUTPUT` on GitHub, `shiptag.env` in the repository root o
 shiptag exits `0` when it released, when there is nothing to release, or when the release already exists, and `1` on any error (for example a shallow clone or a missing token).
 
 ## Contributing
+
+To re-record the demo and the terminal screenshot after a change to the output, install [VHS](https://github.com/charmbracelet/vhs) and run `make demo`. The demo repository is built by [`docs/demo/setup.sh`](docs/demo/setup.sh), so the recording is the same on every machine.
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). The PR title must be a Conventional Commit, because it becomes the commit that shiptag releases from. Questions go to [Discussions](https://github.com/faridlamaul/shiptag/discussions); to report a vulnerability, follow [SECURITY.md](SECURITY.md).
 
