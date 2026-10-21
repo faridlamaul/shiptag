@@ -3,7 +3,7 @@ INSTALL_DIR=$(HOME)/.local/bin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS=-s -w -X main.version=$(VERSION)
 
-.PHONY: all build install test vet fmt-check clean
+.PHONY: all build install test vet fmt-check clean demo
 
 all: build
 
@@ -23,6 +23,10 @@ vet:
 
 fmt-check:
 	@test -z "$$(gofmt -l .)" || { gofmt -l .; echo "gofmt: files above need formatting"; exit 1; }
+
+# Re-record docs/assets/demo.gif and dry-run.png (needs https://github.com/charmbracelet/vhs).
+demo: build
+	vhs docs/demo/demo.tape
 
 clean:
 	rm -rf bin/

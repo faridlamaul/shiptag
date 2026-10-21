@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="460" height="128" viewBox="0 0 460 128" role="img" aria-label="shiptag">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <mask id="hole">
+      <rect width="128" height="128" fill="#fff"/>
+      <circle cx="35" cy="64" r="7" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M46 20H104a12 12 0 0 1 12 12V96a12 12 0 0 1-12 12H46L12 64Z" fill="url(#g)" stroke="url(#g)" stroke-width="8" stroke-linejoin="round" mask="url(#hole)"/>
+  <g transform="translate(80 64) rotate(35) translate(-80 -64)">
+    <path d="M73 79L80 96L87 79Z" fill="#FBBF24"/>
+    <path d="M71 68L61 82L71 79Z M89 68L99 82L89 79Z" fill="#fff"/>
+    <path d="M80 30C93 41 95 59 90 79H70C65 59 67 41 80 30Z" fill="#fff"/>
+    <circle cx="80" cy="54" r="6" fill="url(#g)"/>
+  </g>
+  <text x="140" y="86" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="62" font-weight="700" letter-spacing="-1" fill="#0F172A">ship<tspan fill="url(#g)">tag</tspan></text>
+</svg>
