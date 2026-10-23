@@ -43,6 +43,7 @@ shiptag reads Conventional Commits from your git history, calculates the next se
 - [Configuration](#configuration)
 - [Outputs and exit codes](#outputs-and-exit-codes)
 - [Contributing](#contributing)
+- [Ownership](#ownership)
 
 </details>
 
@@ -319,6 +320,10 @@ shiptag exits `0` when it released, when there is nothing to release, or when th
 To re-record the demo and the terminal screenshot after a change to the output, install [VHS](https://github.com/charmbracelet/vhs) and run `make demo`. The demo repository is built by [`docs/demo/setup.sh`](docs/demo/setup.sh), so the recording is the same on every machine.
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). The PR title must be a Conventional Commit, because it becomes the commit that shiptag releases from. Questions go to [Discussions](https://github.com/faridlamaul/shiptag/discussions); to report a vulnerability, follow [SECURITY.md](SECURITY.md).
+
+## Ownership
+
+Maintainer: af/faridlamaul · Repository: <https://github.com/faridlamaul/shiptag> · Issues: <https://github.com/faridlamaul/shiptag/issues>
 
 ## License
 
