@@ -22,7 +22,7 @@
   <img alt="shiptag previewing the next release of a repository" src="docs/assets/demo.gif" width="800">
 </p>
 
-shiptag reads Conventional Commits from your git history, calculates the next semantic version, writes categorized release notes, and publishes the release to **GitHub**, **GitLab**, or **Bitbucket Cloud**. The platform is detected automatically in CI.
+shiptag reads Conventional Commits from your git history and calculates the next semantic version. It writes categorized release notes and publishes the release to GitHub, GitLab, or Bitbucket Cloud. In CI, it detects the platform automatically.
 
 - **One tool, three platforms:** GitHub (and Enterprise Server), GitLab (and self-managed), Bitbucket Cloud.
 - **Local analysis:** tags and commits come from the clone, so results are the same everywhere and `--dry-run` needs no token.
@@ -33,9 +33,9 @@ shiptag reads Conventional Commits from your git history, calculates the next se
 <summary><strong>Contents</strong></summary>
 
 - [How it works](#how-it-works)
-- [Platforms](#platforms)
 - [Installation](#installation)
 - [Quick start](#quick-start)
+- [Platforms](#platforms)
 - [CI setup](#ci-setup)
 - [Usage](#usage)
 - [How versions are calculated](#how-versions-are-calculated)
@@ -44,6 +44,7 @@ shiptag reads Conventional Commits from your git history, calculates the next se
 - [Outputs and exit codes](#outputs-and-exit-codes)
 - [Contributing](#contributing)
 - [Ownership](#ownership)
+- [License](#license)
 
 </details>
 
@@ -64,17 +65,6 @@ flowchart LR
 ```
 
 shiptag works on the local clone, so the same commits always give the same version. The platform API is used only when publishing, so `--dry-run` runs without a token.
-
-## Platforms
-
-| | GitHub | GitLab | Bitbucket Cloud |
-|---|---|---|---|
-| Publishes | GitHub Release (draft, prerelease) | GitLab Release | Annotated tag carrying the notes |
-| Token | `GITHUB_TOKEN` or `GH_TOKEN` | `GITLAB_TOKEN`, else the built-in `CI_JOB_TOKEN` | `BITBUCKET_TOKEN` |
-| Permission | `contents: write` | Developer role (`api` scope for personal or project tokens) | Repository access token with `repository:write` |
-| PR/MR links from | `(#N)`, `Merge pull request #N` | `(!N)`, `See merge request …!N` | `(pull request #N)` |
-
-`--token` overrides the environment on every platform. For a self-hosted GitHub or GitLab detected only from the `origin` remote, shiptag does not send the token from the environment until you confirm the host with `--base-url` (or `--api-url`), so a token is never sent to an unexpected server. In CI, the server URL comes from the platform's own variables and needs no flag.
 
 ## Installation
 
@@ -112,7 +102,9 @@ Actions:
 …
 ```
 
-<img alt="Output of shiptag tag --dry-run" src="docs/assets/dry-run.png" width="720">
+<p align="center">
+  <img alt="Output of shiptag tag --dry-run" src="docs/assets/dry-run.png" width="720">
+</p>
 
 With Docker, mount the repository and keep file ownership:
 
@@ -120,6 +112,19 @@ With Docker, mount the repository and keep file ownership:
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" -w /workspace \
   ghcr.io/faridlamaul/shiptag:latest tag --dry-run
 ```
+
+## Platforms
+
+| | GitHub | GitLab | Bitbucket Cloud |
+|---|---|---|---|
+| Publishes | GitHub Release (draft, prerelease) | GitLab Release | Annotated tag carrying the notes |
+| Token | `GITHUB_TOKEN` or `GH_TOKEN` | `GITLAB_TOKEN`, else the built-in `CI_JOB_TOKEN` | `BITBUCKET_TOKEN` |
+| Permission | `contents: write` | Developer role (`api` scope for personal or project tokens) | Repository access token with `repository:write` |
+| PR/MR links from | `(#N)`, `Merge pull request #N` | `(!N)`, `See merge request …!N` | `(pull request #N)` |
+
+`--token` overrides the environment on every platform.
+
+For a self-hosted GitHub or GitLab detected only from the `origin` remote, shiptag withholds the environment token. Confirm the host with `--base-url` (or `--api-url`) first, so a token is never sent to an unexpected server. In CI, the server URL comes from the platform's own variables and needs no flag.
 
 ## CI setup
 
@@ -179,7 +184,7 @@ release:
 
 The built-in `CI_JOB_TOKEN` is enough when the pipeline user has the Developer role. For protected tags, set a masked `GITLAB_TOKEN` variable instead.
 
-### Bitbucket Pipelines
+### Bitbucket pipelines
 
 ```yaml
 clone:
@@ -264,7 +269,9 @@ Alice, @bob, Carol
 
 On GitHub, the same notes render like this ([v0.3.1](https://github.com/faridlamaul/shiptag/releases/tag/v0.3.1), released by shiptag itself):
 
-<img alt="shiptag release notes on a GitHub Release page" src="docs/assets/github-release.png" width="720">
+<p align="center">
+  <img alt="shiptag release notes on a GitHub Release page" src="docs/assets/github-release.png" width="720">
+</p>
 
 A breaking change keeps its commit subject as the list item, and the text of its `BREAKING CHANGE:` footer appears as a paragraph below it. The notes are plain Markdown, so they render the same on GitHub, GitLab, and Bitbucket.
 
@@ -311,9 +318,9 @@ Unknown keys and invalid values are reported with the key name.
 | `sha`, `url` | Released commit and release URL |
 | `bump` | `major`, `minor`, `patch`, `initial`, or `explicit` |
 
-Outputs go to `$GITHUB_OUTPUT` on GitHub, `shiptag.env` in the repository root on GitLab and Bitbucket, and stdout elsewhere (`--output-file` overrides this).
+Outputs go to `$GITHUB_OUTPUT` on GitHub and to `shiptag.env` in the repository root on GitLab and Bitbucket. Elsewhere they go to stdout. `--output-file` overrides this.
 
-shiptag exits `0` when it released, when there is nothing to release, or when the release already exists, and `1` on any error (for example a shallow clone or a missing token).
+shiptag exits `0` when it released, when there is nothing to release, or when the release already exists. It exits `1` on any error, for example a shallow clone or a missing token.
 
 ## Contributing
 
@@ -323,7 +330,9 @@ Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code 
 
 ## Ownership
 
-Maintainer: af/faridlamaul · Repository: <https://github.com/faridlamaul/shiptag> · Issues: <https://github.com/faridlamaul/shiptag/issues>
+- **Maintainer:** [af/faridlamaul](https://github.com/faridlamaul)
+- **Repository:** [faridlamaul/shiptag](https://github.com/faridlamaul/shiptag)
+- **Issues:** [GitHub Issues](https://github.com/faridlamaul/shiptag/issues)
 
 ## License
 
